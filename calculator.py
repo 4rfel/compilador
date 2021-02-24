@@ -1,23 +1,28 @@
 import sys
 
 def split_by_list(l, s):
-    s = s.split(l[0])
-    for i in l[1:]:
-        temp = []
-        for j in s:
-            temp += j.split(i)
-        s = temp
-    return s
+	s = s.split(l[0])
+	for i in l[1:]:
+		temp = []
+		for j in s:
+			temp += j.split(i)
+		s = temp
+	return s
 
 numbers = split_by_list(["+", "-"], sys.argv[1])
 numbers = [x.strip() for x in numbers]
 for i in numbers:
-    for j in i:
-        if j == " ":
-            print("found a number with a space in the middle")
-            exit(1)
+	for j in i:
+		if j == " ":
+			print("found a number with a space in the middle")
+			exit(1)
+	if i == "":
+		print("found 2 symbols side by side")
+		exit(1)
+
 if numbers[0] == "":
-    numbers[0] = 0
+	numbers[0] = 0
+
 numbers = [float(x) for x in numbers]
 
 l = [str(x) for x in range(10)]
@@ -27,9 +32,9 @@ operators = list(filter(lambda a: a != "", operators))
 
 result = numbers[0]
 for i, operator in enumerate(operators):
-    if operator == "+":
-       result += numbers[i+1]
-    else:
-        result -= numbers[i+1]
+	if operator == "+":
+	   result += numbers[i+1]
+	else:
+		result -= numbers[i+1]
 
 print(result)
