@@ -9,15 +9,19 @@ def split_by_list(l, s):
 		s = temp
 	return s
 
+if len(sys.argv) == 1:
+	print("invalid input")
+	exit(1)
+
 numbers = split_by_list(["+", "-"], sys.argv[1])
 numbers = [x.strip() for x in numbers]
 for i in numbers:
 	for j in i:
 		if j == " ":
-			print("found a number with a space in the middle")
+			print("invalid input")
 			exit(1)
 	if i == "":
-		print("found 2 symbols side by side")
+		print("invalid input")
 		exit(1)
 
 if numbers[0] == "":
