@@ -10,19 +10,16 @@ def split_by_list(l, s):
 	return s
 
 if len(sys.argv) == 1:
-	print("invalid input")
-	exit(1)
+	sys.exit("invalid input")
 
 numbers = split_by_list(["+", "-"], sys.argv[1])
 numbers = [x.strip() for x in numbers]
 for i in numbers:
 	for j in i:
 		if j == " ":
-			print("invalid input")
-			exit(1)
+			sys.exit("invalid input")
 	if i == "":
-		print("invalid input")
-		exit(1)
+		sys.exit("invalid input")
 
 if numbers[0] == "":
 	numbers[0] = 0
@@ -41,4 +38,4 @@ for i, operator in enumerate(operators):
 	else:
 		result -= numbers[i+1]
 
-print(result)
+print(int(result))
