@@ -112,7 +112,7 @@ class Parser:
 			(self.tokens.actual.tipo == "symbol" or self.tokens.actual.tipo == "multdiv")):
 				sys.exit("2 simbolos seguidos fora de comentario")
 
-			if last.tipo == "EOF" or last.tipo == "comentary":
+			elif last.tipo == "EOF" or last.tipo == "comentary":
 				sys.exit("termina em operacao")
 
 		return int(total)
