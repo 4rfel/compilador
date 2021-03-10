@@ -5,7 +5,7 @@ class Token:
 		self.tipo: str = tipo
 		self.value: int = value
 
-accepted_chars = "[-+ 0-9]"
+accepted_chars = "[-+*/ 0-9]"
 
 class Tokenizer:
 	def __init__(self, origin:str):
@@ -25,12 +25,20 @@ class Tokenizer:
 			while self.position < len(self.origin):
 				if self.origin[self.position].isdigit():
 					temp += self.origin[self.position]
-				elif self.origin[self.position] in ["+", "-", " "]:
+				elif self.origin[self.position] in ["+", "-", " ", "*", "/"]:
 					break
 				elif not self.origin[self.position].isnumeric():
 					sys.exit(f"found a value not in {accepted_chars}")
 				self.position += 1
 			self.actual = Token(tipo="integer", value=int(temp))
+
+		elif self.origin[self.position:self.position+2] == "/*":
+			self.actual = Token(tipo="comentary", value=0)
+			while self.origin[self.position:self.position+2] != "*/":
+				self.position += 1
+				if self.position == len(self.origin) - 1:
+					sys.exit("n fechou o comentario")
+			self.position += 2
 
 		elif self.origin[self.position] == "+":
 			self.actual = Token(tipo="symbol", value=1)
@@ -38,6 +46,14 @@ class Tokenizer:
 
 		elif self.origin[self.position] == "-":
 			self.actual = Token(tipo="symbol", value=-1)
+			self.position += 1
+		
+		elif self.origin[self.position] == "*":
+			self.actual = Token(tipo="multdiv", value=1)
+			self.position += 1
+		
+		elif self.origin[self.position] == "/":
+			self.actual = Token(tipo="multdiv", value=-1)
 			self.position += 1
 
 		elif self.position == len(self.origin)-1:
@@ -53,26 +69,53 @@ class Parser:
 
 	def parseExpression(self):
 		self.tokens.selectNext()
+		while self.tokens.actual.tipo == "comentary":
+			self.tokens.selectNext()
+
 		if self.tokens.actual.tipo == "integer":
 			total = self.tokens.actual.value
 			last = self.tokens.actual
+			last_int = total
+			last_tipo = "integer"
 		else:
 			sys.exit("1 token != integer")
 
+		last_op = 0 # 0 == +-, 1 == */
+		signal = 1
+
 		while self.tokens.actual.tipo != "EOF":
 			self.tokens.selectNext()
-			if self.tokens.actual.tipo == "integer" and last.tipo == "symbol":
-				total += last.value * self.tokens.actual.value
-			elif self.tokens.actual.tipo == last.tipo:
-				sys.exit("2 tokens do mesmo tipo seguidos")
-			if self.tokens.actual.tipo != "EOF":
+
+			if self.tokens.actual.tipo == "symbol":
+				signal = self.tokens.actual.value
+				self.tokens.selectNext()
 				last = self.tokens.actual
 
-		if last.tipo == "symbol":
-			sys.exit("termina em simbolo")
+				total += signal * last.value
+				last_op = 0
+
+			elif self.tokens.actual.tipo == "multdiv":
+				if last_op == 0:
+					total -= signal * last_int
+
+				signal = self.tokens.actual.value
+				self.tokens.selectNext()
+				last = self.tokens.actual
+
+				if signal == 1:
+					total += last_int * self.tokens.actual.value
+				else:
+					total += last_int / self.tokens.actual.value
+				last_op = 1
+			
+			if (last.tipo == "symbol" or last.tipo == "multdiv") and (self.tokens.actual.tipo == "symbol" or self.tokens.actual.tipo == "multdiv"):
+				sys.exit("2 simbolos seguidos fora de comentario")
+
+			if last.tipo == "EOF" or last.tipo == "comentary":
+				sys.exit("termina em operacao")
 
 		return int(total)
-
+ 
 	def run(self, code:str):
 		self.tokens = Tokenizer(code)
 		return self.parseExpression()
