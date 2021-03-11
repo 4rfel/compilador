@@ -104,13 +104,12 @@ class Parser:
 				self.tokens.selectNext()
 				last = self.tokens.actual
 
-
 				if signal == 1:
 					last_int *= self.tokens.actual.value
 					total += last_int
 				else:
 					last_int /= self.tokens.actual.value
-					total += last_int
+					total += int(last_int)
 				last_op = 1
 			
 			if ((last.tipo == "symbol" or last.tipo == "multdiv") and
