@@ -97,15 +97,20 @@ class Parser:
 			elif self.tokens.actual.tipo == "multdiv":
 				if last_op == 0:
 					total -= signal * last_int
+				elif last_op == 1:
+					total -= last_int
 
 				signal = self.tokens.actual.value
 				self.tokens.selectNext()
 				last = self.tokens.actual
 
+
 				if signal == 1:
-					total += last_int * self.tokens.actual.value
+					last_int *= self.tokens.actual.value
+					total += last_int
 				else:
-					total += last_int / self.tokens.actual.value
+					last_int /= self.tokens.actual.value
+					total += last_int
 				last_op = 1
 			
 			if ((last.tipo == "symbol" or last.tipo == "multdiv") and
