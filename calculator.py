@@ -76,20 +76,29 @@ class Parser:
 			total = self.tokens.actual.value
 			last = self.tokens.actual
 			last_int = total
-			last_tipo = "integer"
 		else:
 			sys.exit("1 token != integer")
 
 		last_op = 0 # 0 == +-, 1 == */
 		signal = 1
+		
 
 		while self.tokens.actual.tipo != "EOF":
 			self.tokens.selectNext()
+			
 
-			if self.tokens.actual.tipo == "symbol":
+			if self.tokens.actual.tipo == "integer":
+				sys.exit("2 integers seguidos")
+
+			elif self.tokens.actual.tipo == "symbol":
 				signal = self.tokens.actual.value
 				self.tokens.selectNext()
+				while self.tokens.actual.tipo == "comentary":
+					self.tokens.selectNext()
+
 				last = self.tokens.actual
+				last_int = last.value
+				
 
 				total += signal * last.value
 				last_op = 0
@@ -102,7 +111,12 @@ class Parser:
 
 				signal = self.tokens.actual.value
 				self.tokens.selectNext()
+				
+				while self.tokens.actual.tipo == "comentary":
+						self.tokens.selectNext()
+
 				last = self.tokens.actual
+				
 
 				if signal == 1:
 					last_int *= self.tokens.actual.value
