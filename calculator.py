@@ -15,11 +15,14 @@ class Tokenizer:
 		self.origin: str = origin + " "
 		self.position: int = 0
 		self.actual: Token = None
+		self.brackets = 0
 
 	def selectNext(self):
 		while self.origin[self.position] == " ":
 			if self.position == len(self.origin) - 1:
 				self.actual = Token(tipo="EOF", value=0)
+				if self.brackets != 0:
+					sys.exit("unbalanced bracket")
 				return
 			self.position += 1
 
@@ -28,7 +31,7 @@ class Tokenizer:
 			while self.position < len(self.origin):
 				if self.origin[self.position].isdigit():
 					temp += self.origin[self.position]
-				elif self.origin[self.position] in ["+", "-", " ", "*", "/"]:
+				elif self.origin[self.position] in ["+", "-", " ", "*", "/", "(", ")"]:
 					break
 				elif not self.origin[self.position].isnumeric():
 					sys.exit(f"found a value not in {accepted_chars}")
@@ -52,15 +55,23 @@ class Tokenizer:
 			self.position += 1
 
 		elif self.origin[self.position] == "*":
-			self.actual = Token(tipo="multdiv", value=1)
+			self.actual = Token(tipo="mult", value=1)
 			self.position += 1
 
 		elif self.origin[self.position] == "/":
-			self.actual = Token(tipo="multdiv", value=-1)
+			self.actual = Token(tipo="div", value=-1)
 			self.position += 1
 
-		elif self.position == len(self.origin) - 1:
-			self.actual = Token(tipo="EOF", value=0)
+		elif self.origin[self.position] == "(":
+			self.actual = Token(tipo="open", value=-1)
+			self.brackets += 1
+			self.position += 1
+		
+		elif self.origin[self.position] == ")":
+			self.actual = Token(tipo="close", value=-1)
+			self.brackets -= 1
+			if self.brackets < 0:
+				sys.exit("unbalanced bracket")
 			self.position += 1
 
 		else:
@@ -71,67 +82,50 @@ class Parser:
 	def __init__(self):
 		self.tokens: Tokenizer = None
 
-	def parseExpression(self):
+	def print_token(self):
+		print(self.tokens.actual.tipo, self.tokens.actual.value)
+
+	def getNextNotComentary(self):
 		self.tokens.selectNext()
 		while self.tokens.actual.tipo == "comentary":
 			self.tokens.selectNext()
 
+	def parseFactor(self):
+		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "integer":
-			total = self.tokens.actual.value
-			last = self.tokens.actual
-			last_int = total
-		else:
-			sys.exit("1 token != integer")
+			return self.tokens.actual.value
 
-		last_op = 0  # 0 == +-, 1 == */
-		signal = 1
+		if self.tokens.actual.tipo == "symbol":
+			return self.tokens.actual.value * self.parseFactor()
 
-		while self.tokens.actual.tipo != "EOF":
-			self.tokens.selectNext()
+		if self.tokens.actual.tipo == "open":
+			total = self.parseExpression()
+			self.getNextNotComentary()
+			return total
 
-			if self.tokens.actual.tipo == "integer":
-				sys.exit("2 integers seguidos")
+	def parseTerm(self):
+		total = self.parseFactor()
+		self.getNextNotComentary()
+		while self.tokens.actual.tipo == "mult" or self.tokens.actual.tipo == "div":
+			if self.tokens.actual.tipo == "mult":
+				total *= self.parseFactor()
 
-			elif self.tokens.actual.tipo == "symbol":
+			elif self.tokens.actual.tipo == "div":
+				total //= self.parseFactor()
+
+			self.getNextNotComentary()
+
+		return total
+	
+			
+	def parseExpression(self):
+		total = self.parseTerm()
+
+		while self.tokens.actual.tipo == "symbol":
+			if self.tokens.actual.tipo == "symbol":
 				signal = self.tokens.actual.value
-				self.tokens.selectNext()
-				while self.tokens.actual.tipo == "comentary":
-					self.tokens.selectNext()
-
-				last = self.tokens.actual
-				last_int = last.value
-
-				total += signal * last.value
-				last_op = 0
-
-			elif self.tokens.actual.tipo == "multdiv":
-				if last_op == 0:
-					total -= signal * last_int
-				elif last_op == 1:
-					total -= last_int
-
-				signal = self.tokens.actual.value
-				self.tokens.selectNext()
-				while self.tokens.actual.tipo == "comentary":
-					self.tokens.selectNext()
-
-				last = self.tokens.actual
-
-				if signal == 1:
-					last_int *= self.tokens.actual.value
-					total += last_int
-				else:
-					last_int /= self.tokens.actual.value
-					total += int(last_int)
-				last_op = 1
-
-			if (last.tipo == "symbol" or last.tipo == "multdiv") and (
-				self.tokens.actual.tipo == "symbol" or self.tokens.actual.tipo == "multdiv"
-			):
-				sys.exit("2 simbolos seguidos fora de comentario")
-
-			elif last.tipo == "EOF" or last.tipo == "comentary":
-				sys.exit("termina em operacao")
+				total += signal * self.parseFactor()
+				self.getNextNotComentary()
 
 		return int(total)
 
