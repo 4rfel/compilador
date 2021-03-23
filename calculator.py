@@ -93,7 +93,9 @@ class Parser:
 	def parseFactor(self):
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "integer":
-			return self.tokens.actual.value
+			total = self.tokens.actual.value
+			self.getNextNotComentary()
+			return total
 
 		if self.tokens.actual.tipo == "symbol":
 			return self.tokens.actual.value * self.parseFactor()
@@ -105,7 +107,7 @@ class Parser:
 
 	def parseTerm(self):
 		total = self.parseFactor()
-		self.getNextNotComentary()
+		
 		while self.tokens.actual.tipo == "mult" or self.tokens.actual.tipo == "div":
 			if self.tokens.actual.tipo == "mult":
 				total *= self.parseFactor()
@@ -113,19 +115,15 @@ class Parser:
 			elif self.tokens.actual.tipo == "div":
 				total //= self.parseFactor()
 
-			self.getNextNotComentary()
-
 		return total
 	
 			
 	def parseExpression(self):
 		total = self.parseTerm()
-
-		while self.tokens.actual.tipo == "symbol":
+		while self.tokens.actual.tipo == "symbol":			
 			if self.tokens.actual.tipo == "symbol":
 				signal = self.tokens.actual.value
 				total += signal * self.parseFactor()
-				self.getNextNotComentary()
 
 		return int(total)
 
