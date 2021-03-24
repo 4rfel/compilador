@@ -132,7 +132,7 @@ class Parser:
 		while self.tokens.actual.tipo == "symbol":			
 			if self.tokens.actual.tipo == "symbol":
 				signal = self.tokens.actual.value
-				total += signal * self.parseFactor()
+				total += signal * self.parseTerm()
 
 		return int(total)
 
