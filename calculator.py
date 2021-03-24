@@ -39,12 +39,14 @@ class Tokenizer:
 			self.actual = Token(tipo="integer", value=int(temp))
 
 		elif self.origin[self.position : self.position + 2] == "/*":
+			self.origin = self.origin[:self.position+2] + " " + self.origin[self.position+2:]
 			self.actual = Token(tipo="comentary", value=0)
 			while self.origin[self.position : self.position + 2] != "*/":
 				self.position += 1
-				if self.position == len(self.origin) - 1:
+				if self.position >= len(self.origin):
 					sys.exit("n fechou o comentario")
 			self.position += 2
+
 
 		elif self.origin[self.position] == "+":
 			self.actual = Token(tipo="symbol", value=1)
@@ -95,6 +97,8 @@ class Parser:
 		if self.tokens.actual.tipo == "integer":
 			total = self.tokens.actual.value
 			self.getNextNotComentary()
+			if self.tokens.actual.tipo == "integer":
+				sys.exit("2 integers seguidas")
 			return total
 
 		if self.tokens.actual.tipo == "symbol":
@@ -104,6 +108,11 @@ class Parser:
 			total = self.parseExpression()
 			self.getNextNotComentary()
 			return total
+
+		if self.tokens.actual.tipo == "EOF":
+			sys.exit("operacao no final")
+			
+		sys.exit("2 mult/div seguidos")
 
 	def parseTerm(self):
 		total = self.parseFactor()
