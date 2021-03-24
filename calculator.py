@@ -7,7 +7,7 @@ class Token:
 		self.value: int = value
 
 
-accepted_chars = "[-+*/ 0-9]"
+accepted_chars = "[-+*/ 0-9()]"
 
 
 class Tokenizer:
