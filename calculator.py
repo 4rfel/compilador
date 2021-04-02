@@ -147,7 +147,7 @@ class Parser:
 				sys.exit("2 integers seguidas")
 			return IntVal(value)
 
-		if self.tokens.actual.tipo == "symbol":
+		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
 			return UnOp(self.tokens.actual, self.parseFactor())
 
 		if self.tokens.actual.tipo == "open":
