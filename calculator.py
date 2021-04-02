@@ -192,4 +192,4 @@ if len(sys.argv) == 1:
 with open(sys.argv[1], "r") as f:
 	code = f.read()
 # print(code)
-print(parser.run("1+1"))
+print(parser.run(code))
