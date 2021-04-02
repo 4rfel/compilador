@@ -11,16 +11,13 @@ class Node(ABC):
 	def __init__(self, value = 0, children = []):
 		self.value = value
 		self.children = children
-
+		
 	@abstractmethod
 	def Evaluate(self):
 		return
 
 class BinOP(Node):
 	def Evaluate(self):
-		if len(self.children) != 2:
-			sys.exit("BinOP diferente de 2 filhos")
-
 		if self.value == "add":
 			return self.children[0].Evaluate() + self.children[1].Evaluate()
 		if self.value == "sub":
@@ -34,20 +31,14 @@ class BinOP(Node):
 
 class UnOp(Node):
 	def Evaluate(self):
-		if len(self.children) != 1:
-			sys.exit("UnOp diferente de 1 filho")
 		if self.value == "add":
-			return self.children[0].Evaluate()
+			return self.children.Evaluate()
 		if self.value == "sub":
-			return -self.children[0].Evaluate()
-		
+			return -self.children.Evaluate()
 		sys.exit("DEU RUIM 2")
 
 class IntVal(Node):
 	def Evaluate(self):
-		if len(self.children) != 0:
-			sys.exit("IntVal tem Filho")
-
 		return self.value
 
 class NoOp(Node):
@@ -92,7 +83,6 @@ class Tokenizer:
 				if self.position >= len(self.origin):
 					sys.exit("n fechou o comentario")
 			self.position += 2
-
 
 		elif self.origin[self.position] == "+":
 			self.actual = Token(tipo="add", value=1)
@@ -145,10 +135,10 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "integer":
 				sys.exit("2 integers seguidas")
-			return IntVal(value)
+			return IntVal(value, [])
 
 		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
-			return UnOp(self.tokens.actual, self.parseFactor())
+			return UnOp(self.tokens.actual.tipo, self.parseFactor())
 
 		if self.tokens.actual.tipo == "open":
 			total = self.parseExpression()
