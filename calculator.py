@@ -1,17 +1,11 @@
 import sys
 from abc import ABC, abstractmethod
 
-class Token:
-	def __init__(self, tipo: str, value: int):
-		self.tipo: str = tipo
-		self.value: int = value
-
-
 class Node(ABC):
 	def __init__(self, value = 0, children = []):
 		self.value = value
 		self.children = children
-		
+
 	@abstractmethod
 	def Evaluate(self):
 		return
@@ -46,6 +40,10 @@ class NoOp(Node):
 
 accepted_chars = "[-+*/ 0-9()]"
 
+class Token:
+	def __init__(self, tipo: str, value: int):
+		self.tipo: str = tipo
+		self.value: int = value
 
 class Tokenizer:
 	def __init__(self, origin: str):
@@ -104,7 +102,7 @@ class Tokenizer:
 			self.actual = Token(tipo="open", value=-1)
 			self.brackets += 1
 			self.position += 1
-		
+
 		elif self.origin[self.position] == ")":
 			self.actual = Token(tipo="close", value=-1)
 			self.brackets -= 1
@@ -114,7 +112,6 @@ class Tokenizer:
 
 		else:
 			sys.exit(f"found a value not in {accepted_chars}")
-
 
 class Parser:
 	def __init__(self):
@@ -158,7 +155,6 @@ class Parser:
 				branch = BinOP(self.tokens.actual.tipo, [branch, self.parseFactor()])
 
 		return branch
-	
 			
 	def parseExpression(self):
 		branch = self.parseTerm()
@@ -172,7 +168,6 @@ class Parser:
 		self.tokens = Tokenizer(code)
 		tree = self.parseExpression()
 		return tree.Evaluate()
-
 
 parser = Parser()
 
