@@ -19,7 +19,7 @@ class BinOP(Node):
 		if self.value == "mult":
 			return self.children[0].Evaluate() * self.children[1].Evaluate()
 		if self.value == "div":
-			return self.children[0].Evaluate() // self.children[1].Evaluate()
+			return int(self.children[0].Evaluate() / self.children[1].Evaluate())
 
 		sys.exit("DEU RUIM")
 
@@ -132,6 +132,8 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "integer":
 				sys.exit("2 integers seguidas")
+			elif self.tokens.actual.tipo == "open":
+				sys.exit("int imediatamente antes de abrir parenteses")
 			return IntVal(value, [])
 
 		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
@@ -145,6 +147,9 @@ class Parser:
 		if self.tokens.actual.tipo == "EOF":
 			sys.exit("operacao no final")
 			
+		if self.tokens.actual.tipo == "close":
+			sys.exit("int after close")
+
 		sys.exit("2 mult/div seguidos")
 
 	def parseTerm(self):
@@ -169,12 +174,13 @@ class Parser:
 		tree = self.parseExpression()
 		return tree.Evaluate()
 
-parser = Parser()
+if __name__ == "__main__":
+	parser = Parser()
 
-if len(sys.argv) == 1:
-	sys.exit("sem input")
+	if len(sys.argv) == 1:
+		sys.exit("sem input")
 
-with open(sys.argv[1], "r") as f:
-	code = f.read()
-# print(code)
-print(parser.run(code))
+	with open(sys.argv[1], "r") as f:
+		code = f.read()
+	# print(code)
+	print(parser.run(code))
