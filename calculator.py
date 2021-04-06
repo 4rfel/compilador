@@ -165,7 +165,7 @@ class Parser:
 		branch = self.parseTerm()
 		while self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":			
 			if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
-				branch = branch = BinOP(self.tokens.actual.tipo, [branch, self.parseTerm()])
+				branch = BinOP(self.tokens.actual.tipo, [branch, self.parseTerm()])
 
 		return branch
 
