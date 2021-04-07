@@ -156,22 +156,22 @@ class Parser:
 		branch = self.parseFactor()
 		
 		while self.tokens.actual.tipo == "mult" or self.tokens.actual.tipo == "div":
-			if self.tokens.actual.tipo == "mult" or self.tokens.actual.tipo == "div":
-				branch = BinOP(self.tokens.actual.tipo, [branch, self.parseFactor()])
+			branch = BinOP(self.tokens.actual.tipo, [branch, self.parseFactor()])
 
 		return branch
 			
 	def parseExpression(self):
 		branch = self.parseTerm()
 		while self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":			
-			if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
-				branch = BinOP(self.tokens.actual.tipo, [branch, self.parseTerm()])
+			branch = BinOP(self.tokens.actual.tipo, [branch, self.parseTerm()])
 
 		return branch
 
 	def run(self, code: str):
 		self.tokens = Tokenizer(code)
 		tree = self.parseExpression()
+		if self.tokens.actual.tipo != "EOF":
+			sys.exit("n eh eof no final, erro em geral")
 		return tree.Evaluate()
 
 if __name__ == "__main__":
@@ -182,5 +182,4 @@ if __name__ == "__main__":
 
 	with open(sys.argv[1], "r") as f:
 		code = f.read()
-	# print(code)
 	print(parser.run(code))
