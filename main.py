@@ -36,14 +36,14 @@ class IntVal(Node):
 		return self.value
 
 class NoOp(Node):
-	pass	
+	pass
 
-accepted_chars = "[-+*/ 0-9()]"
+accepted_chars = "[-+*/ 0-9()_a-zA-Z;=]"
 
 class Token:
 	def __init__(self, tipo: str, value: int):
 		self.tipo: str = tipo
-		self.value: int = value
+		self.value = value
 
 class Tokenizer:
 	def __init__(self, origin: str):
@@ -51,9 +51,11 @@ class Tokenizer:
 		self.position: int = 0
 		self.actual: Token = None
 		self.brackets = 0
+		self.line = 1
 
 	def selectNext(self):
-		while self.origin[self.position] == " ":
+
+		while self.origin[self.position] == " " or self.origin[self.position] == "\n":
 			if self.position == len(self.origin) - 1:
 				self.actual = Token(tipo="EOF", value=0)
 				if self.brackets != 0:
@@ -66,10 +68,10 @@ class Tokenizer:
 			while self.position < len(self.origin):
 				if self.origin[self.position].isdigit():
 					temp += self.origin[self.position]
-				elif self.origin[self.position] in ["+", "-", " ", "*", "/", "(", ")"]:
+				elif self.origin[self.position] in ["+", "-", " ", "*", "/", "(", ")", ""]:
 					break
 				elif not self.origin[self.position].isnumeric():
-					sys.exit(f"found a value not in {accepted_chars}")
+					break
 				self.position += 1
 			self.actual = Token(tipo="integer", value=int(temp))
 
@@ -110,9 +112,37 @@ class Tokenizer:
 				sys.exit("unbalanced bracket")
 			self.position += 1
 
+		elif self.origin[self.position] == "=":
+			self.actual = Token(tipo="=", value=0)
+			self.position += 1
+
+		elif self.origin[self.position:self.position+len("println")] == "println":
+			self.actual = Token(tipo="print", value=0)
+			self.position += len("println")
+
+		elif self.origin[self.position] == ";":
+			self.actual = Token(tipo=";", value=0)
+			self.position += 1
+			self.line += 1
+			if self.origin[self.position] == "\n":
+				self.position += 1
+
+			if self.brackets != 0:
+				sys.exit("unbalanced bracket")
+
+		elif self.origin[self.position].isalpha():
+			tmp = self.origin[self.position]
+			self.position += 1
+			while self.origin[self.position].isalpha() or self.origin[self.position].isnumeric() or self.origin[self.position] == "_":
+				tmp += self.origin[self.position]
+				self.position += 1
+			self.actual = Token(tipo="var", value=tmp)
+
 		else:
+			print(ord(self.origin[self.position]))
 			sys.exit(f"found a value not in {accepted_chars}")
 
+var_table = {}
 class Parser:
 	def __init__(self):
 		self.tokens: Tokenizer = None
@@ -131,9 +161,9 @@ class Parser:
 			value = self.tokens.actual.value
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "integer":
-				sys.exit("2 integers seguidas")
+				sys.exit(f"2 integers seguidas na linha  {self.tokens.line}")
 			elif self.tokens.actual.tipo == "open":
-				sys.exit("int imediatamente antes de abrir parenteses")
+				sys.exit(f"int imediatamente antes de abrir parenteses na linha  {self.tokens.line}")
 			return IntVal(value, [])
 
 		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
@@ -144,13 +174,21 @@ class Parser:
 			self.getNextNotComentary()
 			return total
 
-		if self.tokens.actual.tipo == "EOF":
-			sys.exit("operacao no final")
+		if self.tokens.actual.tipo == "var":
+			if self.tokens.actual.value in var_table:
+				total = var_table[self.tokens.actual.value]
+			else:
+				sys.exit(f"variavel acessada antes de definir na linha  {self.tokens.line}")
+			self.getNextNotComentary()
+			return IntVal(total, [])
+
+		if self.tokens.actual.tipo == ";":
+			sys.exit(f"operacao no final da linha  {self.tokens.line}")
 			
 		if self.tokens.actual.tipo == "close":
-			sys.exit("int after close")
+			sys.exit(f"int after close da linha  {self.tokens.line}")
 
-		sys.exit("2 mult/div seguidos")
+		sys.exit(f"2 mult/div seguidos na linha  {self.tokens.line}")
 
 	def parseTerm(self):
 		branch = self.parseFactor()
@@ -167,12 +205,48 @@ class Parser:
 
 		return branch
 
+	def variable(self):
+		global var_table
+		var = self.tokens.actual.value
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo == "=":
+			exp = self.parseExpression()
+			var_table[var] = exp.Evaluate()
+
+		else:
+			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
+
+	def println(self):
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo == "open":
+			exp = self.parseExpression()
+			print(exp.Evaluate())
+			self.getNextNotComentary()
+
+	def command(self):
+		if self.tokens.actual.tipo == "var":
+			self.variable()
+		elif self.tokens.actual.tipo == "print":
+			self.println()
+
 	def run(self, code: str):
 		self.tokens = Tokenizer(code)
-		tree = self.parseExpression()
-		if self.tokens.actual.tipo != "EOF":
-			sys.exit("n eh eof no final, erro em geral")
-		return tree.Evaluate()
+		# self.print_all_tokens()
+		# return
+		self.getNextNotComentary()
+		while self.tokens.actual.tipo != "EOF":
+			self.command()			
+			if self.tokens.actual.tipo != ";":
+				sys.exit(f"command n terminou em \";\" na linha {self.tokens.line}")
+			self.getNextNotComentary()
+
+	def print_all_tokens(self):
+		self.tokens.selectNext()
+		while self.tokens.actual.tipo != "EOF":
+			print(self.tokens.actual.tipo, self.tokens.actual.value)
+			self.tokens.selectNext()
+		print(self.tokens.actual.tipo, self.tokens.actual.value)
+		
 
 if __name__ == "__main__":
 	parser = Parser()
@@ -182,4 +256,4 @@ if __name__ == "__main__":
 
 	with open(sys.argv[1], "r") as f:
 		code = f.read()
-	print(parser.run(code))
+	parser.run(code)
