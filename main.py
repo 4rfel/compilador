@@ -31,6 +31,9 @@ class UnOp(Node):
 			return self.children.Evaluate()
 		if self.value == "sub":
 			return -self.children.Evaluate()
+		if self.value == "!":
+			return int(not self.children.Evaluate())
+
 		sys.exit("DEU RUIM 2")
 
 class IntVal(Node):
@@ -38,7 +41,8 @@ class IntVal(Node):
 		return self.value
 
 class NoOp(Node):
-	pass
+	def Evaluate(self):
+		return super().Evaluate()
 
 class PrintOp(Node):
 	def Evaluate(self):
@@ -47,12 +51,15 @@ class PrintOp(Node):
 class SetVar(Node):
 	def Evaluate(self):
 		global var_table
-		var = self.children[0].value
+		var = self.children[0]
 		var_table[var] = self.children[1].Evaluate()
 
 class VarVal(Node):
+	def __init__(self, children):
+		super().__init__(value=None, children=children)
+
 	def Evaluate(self):
-		return var_table[self.value]
+		return var_table[self.children[0]]
 
 class Readln(Node):
     def Evaluate(self):
@@ -77,10 +84,10 @@ class CompOp(Node):
 			return c0 > c1
 
 		if self.value == "&&":
-			return c0 and c1
+			return bool(c0) and bool(c1)
 
 		if self.value == "||":
-			return c0 or c1
+			return bool(c0) or bool(c1)
 		
 		sys.exit("DEU RUIM 3")
 
@@ -92,17 +99,26 @@ class IfOp(Node):
 			return self.children[2].Evaluate()
 
 class WhileOp(Node):
+	def __init__(self, children):
+			super().__init__(value=None, children=children)
+
 	def Evaluate(self):
 		while self.children[0].Evaluate():
-			return self.children[1].Evaluate()
+			self.children[1].Evaluate()
 
 class Block(Node):
+	def __init__(self):
+		super().__init__(value=None, children=[])
+
 	def Evaluate(self):
 		for node in self.children:
 			node.Evaluate()
 
 	def AddNode(self, node):
 		self.children.append(node)
+
+	def ClearNodes(self):
+		self.children = []
 
 
 accepted_chars = "[-+*/ 0-9()_a-zA-Z;=]"
@@ -166,15 +182,15 @@ class Tokenizer:
 			self.position += 1
 
 		elif self.origin[self.position] == ">":
-			self.actual = Token(tipo="maior", value=-1)
+			self.actual = Token(tipo=">", value=-1)
 			self.position += 1
 		
 		elif self.origin[self.position] == "<":
-			self.actual = Token(tipo="menor", value=-1)
+			self.actual = Token(tipo="<", value=-1)
 			self.position += 1
 
 		elif self.origin[self.position] == "!":
-			self.actual = Token(tipo="not", value=-1)
+			self.actual = Token(tipo="!", value=-1)
 			self.position += 1
 
 		elif self.origin[self.position] == "=":
@@ -182,7 +198,8 @@ class Tokenizer:
 				self.actual = Token(tipo="==", value=-1)
 				self.position += 2
 			else:
-				sys.exit(f"assign in condition on line {self.line}")
+				self.actual = Token(tipo="=", value=0)
+				self.position += 1
 
 		elif self.origin[self.position] == "&":
 			if(self.origin[self.position+1] == "&"):
@@ -216,15 +233,11 @@ class Tokenizer:
 			self.position += 1
 
 		elif self.origin[self.position] == "}":
-			self.actual = Token(tipo="close_chaves", value=-1)
+			self.actual = Token(tipo="close_chaves", value=1)
 			# self.brackets -= 1
 			# if self.brackets < 0:
 			# 	sys.exit("unbalanced chaves")
-			self.position += 1
-
-		elif self.origin[self.position] == "=":
-			self.actual = Token(tipo="=", value=0)
-			self.position += 1
+			self.position += 1			
 
 		elif self.origin[self.position:self.position+len("println")] == "println":
 			self.actual = Token(tipo="print", value=len("println"))
@@ -252,9 +265,6 @@ class Tokenizer:
 			self.line += 1
 			if self.origin[self.position] == "\n":
 				self.position += 1
-
-
-
 			if self.brackets != 0:
 				sys.exit("unbalanced bracket")
 
@@ -294,21 +304,18 @@ class Parser:
 				sys.exit(f"int imediatamente antes de abrir parenteses na linha  {self.tokens.line}")
 			return IntVal(value, [])
 
-		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub":
+		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub" or self.tokens.actual.tipo == "!":
 			return UnOp(self.tokens.actual.tipo, self.parseFactor())
 
 		if self.tokens.actual.tipo == "open_parenteses":
-			total = self.parseExpression()
+			total = self.parseOr()
 			self.getNextNotComentary()
 			return total
 
 		if self.tokens.actual.tipo == "var":
-			if self.tokens.actual.value in var_table:
-				total = var_table[self.tokens.actual.value]
-			else:
-				sys.exit(f"variavel acessada antes de definir na linha  {self.tokens.line}")
+			var = self.tokens.actual.value
 			self.getNextNotComentary()
-			return IntVal(total, [])
+			return VarVal(children=[var])
 
 		elif self.tokens.actual.tipo == "readln":
 
@@ -321,12 +328,13 @@ class Parser:
 				sys.exit("sem fechar parenteses depois de readln")
 
 		if self.tokens.actual.tipo == ";":
-			sys.exit(f"operacao no final da linha  {self.tokens.line}")
+			sys.exit(f"operacao no final da linha {self.tokens.line}")
 			
 		if self.tokens.actual.tipo == "close_parenteses":
 			sys.exit(f"int after close da linha  {self.tokens.line}")
 
-		sys.exit(f"2 mult/div seguidos na linha  {self.tokens.line}")
+		self.print_token()
+		sys.exit(f"2 mult/div seguidos na linha {self.tokens.line}")
 
 	def parseTerm(self):
 		branch = self.parseFactor()
@@ -344,74 +352,75 @@ class Parser:
 		return branch
 
 	def variable(self):
-		global var_table
 		var = self.tokens.actual.value
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "=":
-			exp = self.parseExpression()
+			exp = self.parseOr()
 			return SetVar(0, [var, exp])
-
 		else:
 			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 
 	def println(self):
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "open_parenteses":
-			exp = self.parseExpression()
+			exp = self.parseOr()
 			self.getNextNotComentary()
 			return PrintOp(0, [exp])
 		sys.exit(f"sem ( depois de chamr println na linha  {self.tokens.line}")
 
 
 	def parseIf(self):
-		self.getNextNotComentaryself.getNextNotComentary()()
-		if self.tokens.actual.tipo != "if":
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo != "open_parenteses":
+			self.print_token()
+			sys.exit(f"no ( after if on line {self.tokens.line}")
+
+		condition = self.parseOr()
+		if self.tokens.actual.tipo != "close_parenteses":
+			self.print_token()
+			sys.exit(f"no ) closing if on line {self.tokens.line}")
+
+		self.getNextNotComentary()
+		blockIf = self.command()
+
+		self.getNextNotComentary()
+
+		if self.tokens.actual.tipo == "else":
 			self.getNextNotComentary()
-			if self.tokens.actual.tipo != "open_parenteses":
-				sys.exit(f"no ( after if on line {self.tokens.line}")
-			condition = self.parseOr()
-			self.getNextNotComentary()
-			if self.tokens.actual.tipo != "close_parenteses":
-				sys.exit(f"no ) closing if on line {self.tokens.line}")
-			blockIf = self.command()
-			self.getNextNotComentary()
-			if self.tokens.actual.tipo == "else":
-				self.getNextNotComentary()
-				blockElse = self.command()
-				return IfOp(children=[condition, blockIf, blockElse])
-			else:
-				self.tokens.position -= len(self.tokens.actual.value)
-				return IfOp(children=[condition, blockIf])
+			blockElse = self.command()
+			return IfOp(children=[condition, blockIf, blockElse])
+		else:
+			self.tokens.position -= self.tokens.actual.value
+			return IfOp(children=[condition, blockIf])
 				
 	def parseWhile(self):
 		self.getNextNotComentary()
-		if self.tokens.actual.tipo != "while":
-			self.getNextNotComentary()
-			if self.tokens.actual.tipo != "open_parenteses":
-				sys.exit(f"no ( after while on line {self.tokens.line}")
+		if self.tokens.actual.tipo != "open_parenteses":
+			sys.exit(f"no ( after while on line {self.tokens.line}")
 
-			condition = self.parseOr()
-			if self.tokens.actual.tipo != "close_parenteses":
-				sys.exit(f"no ) closing while on line {self.tokens.line}")
+		condition = self.parseOr()
+		if self.tokens.actual.tipo != "close_parenteses":
+			sys.exit(f"no ) closing while on line {self.tokens.line}")
 
-			block = self.command()
-			return WhileOp(children=[condition, block])
+		self.getNextNotComentary()
+		block = self.command()
+		return WhileOp(children=[condition, block])
 
 	def parseOr(self):
 		andexp = self.parseAnd()
 		if self.tokens.actual.tipo == "||":
-			cmp = CompOp(children=[andexp, self.parseIquals()])
+			cmp = CompOp(self.tokens.actual.tipo, children=[andexp, self.parseAnd()])
 			while self.tokens.actual.tipo == "||":
-				cmp = CompOp(children=[cmp, self.parseAnd()])
+				cmp = CompOp(self.tokens.actual.tipo, children=[cmp, self.parseAnd()])
 			return cmp
 		return andexp
 
 	def parseAnd(self):
-		iqualexp = self.parseAnd()
+		iqualexp = self.parseIquals()
 		if self.tokens.actual.tipo == "&&":
-			cmp = CompOp(children=[iqualexp, self.parseIquals()])
+			cmp = CompOp(self.tokens.actual.tipo, children=[iqualexp, self.parseIquals()])
 			while self.tokens.actual.tipo == "&&":
-				cmp = CompOp(children=[cmp, self.parseIquals()])
+				cmp = CompOp(self.tokens.actual.tipo, children=[cmp, self.parseIquals()])
 			return cmp
 		return iqualexp
 
@@ -419,9 +428,9 @@ class Parser:
 		maiormenorexp: Node = self.parseRelExpr()
 
 		if self.tokens.actual.tipo == "==":
-			cmp = CompOp(children=[maiormenorexp, self.parseRelExpr()])
+			cmp = CompOp(self.tokens.actual.tipo, children=[maiormenorexp, self.parseRelExpr()])
 			while self.tokens.actual.tipo == "==":
-				cmp = CompOp(children=[cmp, self.parseRelExpr()])
+				cmp = CompOp(self.tokens.actual.tipo, children=[cmp, self.parseRelExpr()])
 			return cmp
 		return maiormenorexp
 
@@ -429,9 +438,9 @@ class Parser:
 		exp = self.parseExpression()
 
 		if self.tokens.actual.tipo in [">", "<"]:
-			cmp = CompOp(self.tokens.actual, exp, self.parseExpression())
+			cmp = CompOp(self.tokens.actual.tipo, [exp, self.parseExpression()])
 			while self.tokens.actual.tipo in [">", "<"]:
-				cmp = CompOp(self.tokens.actual, cmp, self.parseExpression())
+				cmp = CompOp(self.tokens.actual.tipo, [cmp, self.parseExpression()])
 			return cmp
 		return exp
 				
@@ -446,9 +455,10 @@ class Parser:
 			node = self.parseIf()
 		elif self.tokens.actual.tipo == "while":
 			node = self.parseWhile()
-		# elif self.tokens.actual.tipo == "close_chaves":
-		# 	node = self.println()
-
+		elif self.tokens.actual.tipo == ";":
+			node = NoOp()
+		elif self.tokens.actual.tipo == "open_chaves":
+			node = self.parseBlock()
 		return node
 
 	def parseBlock(self):
@@ -458,13 +468,12 @@ class Parser:
 			sys.exit(f"block cant start with {self.tokens.actual.tipo}")
 
 		self.getNextNotComentary()
-		while self.tokens.actual.tipo != self.tokens.actual.tipo != "close_chaves":
-			block.addNode(self.command())
+		while self.tokens.actual.tipo != "close_chaves":
+			block.AddNode(self.command())
 			self.getNextNotComentary()
 
 		if self.tokens.actual.tipo != "close_chaves":
 			sys.exit(f"block cant end with {self.tokens.actual.tipo}")
-
 		return block
 
 	def run(self, code: str):
@@ -477,9 +486,9 @@ class Parser:
 	def print_all_tokens(self):
 		self.tokens.selectNext()
 		while self.tokens.actual.tipo != "EOF":
-			print(self.tokens.actual.tipo, self.tokens.actual.value)
+			self.print_token()
+			# print()
 			self.tokens.selectNext()
-		print(self.tokens.actual.tipo, self.tokens.actual.value)
 		
 
 if __name__ == "__main__":
