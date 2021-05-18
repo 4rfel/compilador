@@ -1,7 +1,7 @@
 import sys
 from abc import ABC, abstractmethod
 
-var_table = {}
+var_table = {} # {varname:[vartipo, varvalue]}
 
 class Node(ABC):
 	def __init__(self, value = 0, children = []):
@@ -14,14 +14,18 @@ class Node(ABC):
 
 class BinOP(Node):
 	def Evaluate(self):
+		c0 = self.children[0].Evaluate()
+		c1 = self.children[1].Evaluate()
+		if c0[0] != "int" or c1[0] != "int":
+			sys.exit("conta com variavel diferente de int")
 		if self.value == "add":
-			return self.children[0].Evaluate() + self.children[1].Evaluate()
+			return c0[1] + c1[1]
 		if self.value == "sub":
-			return self.children[0].Evaluate() - self.children[1].Evaluate()
+			return c0[1] - c1[1]
 		if self.value == "mult":
-			return self.children[0].Evaluate() * self.children[1].Evaluate()
+			return c0[1] * c1[1]
 		if self.value == "div":
-			return int(self.children[0].Evaluate() / self.children[1].Evaluate())
+			return int(c0[1] / c1[1])
 
 		sys.exit("DEU RUIM")
 
@@ -46,13 +50,19 @@ class NoOp(Node):
 
 class PrintOp(Node):
 	def Evaluate(self):
-		print(self.children[0].Evaluate())
+		print(self.children[0].Evaluate()[1])
 
 class SetVar(Node):
 	def Evaluate(self):
 		global var_table
-		var = self.children[0]
-		var_table[var] = self.children[1].Evaluate()
+		var_type = self.children[0]
+		var_name = self.children[1]
+		if(var_type == "bool"):
+			var_table[var_name] = [var_type, bool(self.children[2].Evaluate())]
+		if(var_type == "string"):
+			var_table[var_name] = [var_type, str(self.children[2].Evaluate())]
+		if(var_type == "int"):
+			var_table[var_name] = [var_type, int(self.children[2].Evaluate())]
 
 class VarVal(Node):
 	def __init__(self, children):
@@ -105,6 +115,21 @@ class WhileOp(Node):
 	def Evaluate(self):
 		while self.children[0].Evaluate():
 			self.children[1].Evaluate()
+
+class BoolVal(Node):
+	def __init__(self, children):
+			super().__init__(value=None, children=children)
+
+	def Evaluate(self):
+		return bool(self.children[0])
+
+class StrVal(Node):
+	def __init__(self, children):
+			super().__init__(value=None, children=children)
+
+	def Evaluate(self):
+		return str(self.children[0])
+
 
 class Block(Node):
 	def __init__(self):
@@ -229,35 +254,70 @@ class Tokenizer:
 
 		elif self.origin[self.position] == "{":
 			self.actual = Token(tipo="open_chaves", value=-1)
-			# self.brackets += 1
 			self.position += 1
 
 		elif self.origin[self.position] == "}":
-			self.actual = Token(tipo="close_chaves", value=1)
-			# self.brackets -= 1
-			# if self.brackets < 0:
-			# 	sys.exit("unbalanced chaves")
+			self.actual = Token(tipo="close_chaves", value="}")
+			self.position += 1
+
+		elif self.origin[self.position] == "\"":
+			tmp = ""
+			self.position += 1
+			while self.origin[self.position] != "\"":
+				tmp += self.origin[self.position]
+				self.position += 1
+			
+			self.position += 1
+			self.actual = Token(tipo="string", value=tmp)
+
+		elif self.origin[self.position] == "\'":
+			tmp = ""
+			self.position += 1
+			while self.origin[self.position] != "\'":
+				tmp += self.origin[self.position]
+				self.position += 1
 			self.position += 1			
+			self.actual = Token(tipo="string", value=tmp)
+
+		elif self.origin[self.position:self.position+len("true")] == "true":
+			self.actual = Token(tipo="bool", value="true")
+			self.position += len("true")
+
+		elif self.origin[self.position:self.position+len("false")] == "false":
+			self.actual = Token(tipo="bool", value="false")
+			self.position += len("false")
 
 		elif self.origin[self.position:self.position+len("println")] == "println":
-			self.actual = Token(tipo="print", value=len("println"))
+			self.actual = Token(tipo="print", value="println")
 			self.position += len("println")
 
 		elif self.origin[self.position:self.position+len("if")] == "if":
-			self.actual = Token(tipo="if", value=len("if"))
+			self.actual = Token(tipo="if", value="if")
 			self.position += len("if")
 
 		elif self.origin[self.position:self.position+len("while")] == "while":
-			self.actual = Token(tipo="while", value=len("while"))
+			self.actual = Token(tipo="while", value="while")
 			self.position += len("while")
 
 		elif self.origin[self.position:self.position+len("else")] == "else":
-			self.actual = Token(tipo="else", value=len("else"))
+			self.actual = Token(tipo="else", value="else")
 			self.position += len("else")
 
 		elif self.origin[self.position:self.position+len("readln")] == "readln":
-			self.actual = Token(tipo="readln", value=len("readln"))
+			self.actual = Token(tipo="readln", value="readln")
 			self.position += len("readln")
+		
+		elif self.origin[self.position:self.position+len("int")] == "int":
+			self.actual = Token(tipo="var_type", value="int")
+			self.position += len("int")
+		
+		elif self.origin[self.position:self.position+len("bool")] == "bool":
+			self.actual = Token(tipo="var_type", value="bool")
+			self.position += len("bool")
+		
+		elif self.origin[self.position:self.position+len("string")] == "string":
+			self.actual = Token(tipo="var_type", value="string")
+			self.position += len("string")
 
 		elif self.origin[self.position] == ";":
 			self.actual = Token(tipo=";", value=0)
@@ -312,13 +372,22 @@ class Parser:
 			self.getNextNotComentary()
 			return total
 
+		if self.tokens.actual.tipo == "bool":
+			value = self.tokens.actual.value == "true"
+			self.getNextNotComentary()
+			return BoolVal(children=[value])
+
+		if self.tokens.actual.tipo == "string":
+			value = self.tokens.actual.value
+			self.getNextNotComentary()
+			return StrVal(children=[value])
+
 		if self.tokens.actual.tipo == "var":
 			var = self.tokens.actual.value
 			self.getNextNotComentary()
 			return VarVal(children=[var])
 
 		elif self.tokens.actual.tipo == "readln":
-
 			self.tokens.selectNext()
 			if self.tokens.actual.tipo != "open_parenteses":
 				sys.exit("sem parenteses depois de readln")
@@ -352,13 +421,18 @@ class Parser:
 		return branch
 
 	def variable(self):
-		var = self.tokens.actual.value
+		var_type = self.tokens.actual.value
 		self.getNextNotComentary()
-		if self.tokens.actual.tipo == "=":
-			exp = self.parseOr()
-			return SetVar(0, [var, exp])
+		if self.tokens.actual.tipo == "var":
+			var_name = self.tokens.actual.value
+			self.getNextNotComentary()
+			if self.tokens.actual.tipo == "=":
+				exp = self.parseOr()
+				return SetVar(0, [var_type, var_name, exp])
+			else:
+				sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 		else:
-			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
+			sys.exit(f"sem var_name depois de tipo na linha  {self.tokens.line}")
 
 	def println(self):
 		self.getNextNotComentary()
@@ -390,7 +464,7 @@ class Parser:
 			blockElse = self.command()
 			return IfOp(children=[condition, blockIf, blockElse])
 		else:
-			self.tokens.position -= self.tokens.actual.value
+			self.tokens.position -= len(self.tokens.actual.value)
 			return IfOp(children=[condition, blockIf])
 				
 	def parseWhile(self):
@@ -447,7 +521,7 @@ class Parser:
 
 	def command(self):
 		node = None
-		if self.tokens.actual.tipo == "var":
+		if self.tokens.actual.tipo == "var_type":
 			node = self.variable()
 		elif self.tokens.actual.tipo == "print":
 			node = self.println()
