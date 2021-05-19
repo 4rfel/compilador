@@ -55,14 +55,33 @@ class PrintOp(Node):
 class SetVar(Node):
 	def Evaluate(self):
 		global var_table
-		var_type = self.children[0]
-		var_name = self.children[1]
+		var_name = self.children[0]
+		if var_name not in var_table:
+			
+			var_type = self.children[1]
+			if len(self.children) == 3:
+				var_value = self.children[2].Evaluate()
+			else:
+				if(var_type == "bool"):
+					var_value = False
+				if(var_type == "string"):
+					var_value = ""
+				if(var_type == "int"):
+					var_value = 0
+		else:
+			var_type = var_table[var_name][0]
+			var_value = self.children[1].Evaluate()
+		
+		if type(var_value) == list:
+			var_value = var_value[1]
+		
+
 		if(var_type == "bool"):
-			var_table[var_name] = [var_type, bool(self.children[2].Evaluate())]
+			var_table[var_name] = [var_type, bool(var_value)]
 		if(var_type == "string"):
-			var_table[var_name] = [var_type, str(self.children[2].Evaluate())]
+			var_table[var_name] = [var_type, str(var_value)]
 		if(var_type == "int"):
-			var_table[var_name] = [var_type, int(self.children[2].Evaluate())]
+			var_table[var_name] = [var_type, int(var_value)]
 
 class VarVal(Node):
 	def __init__(self, children):
@@ -402,7 +421,7 @@ class Parser:
 		if self.tokens.actual.tipo == "close_parenteses":
 			sys.exit(f"int after close da linha  {self.tokens.line}")
 
-		self.print_token()
+		
 		sys.exit(f"2 mult/div seguidos na linha {self.tokens.line}")
 
 	def parseTerm(self):
@@ -420,7 +439,7 @@ class Parser:
 
 		return branch
 
-	def variable(self):
+	def variable_with_type(self):
 		var_type = self.tokens.actual.value
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "var":
@@ -428,8 +447,11 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "=":
 				exp = self.parseOr()
-				return SetVar(0, [var_type, var_name, exp])
+				return SetVar(0, [var_name, var_type, exp])
+			elif self.tokens.actual.tipo == ";":
+				return SetVar(0, [var_name, var_type])
 			else:
+				
 				sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 		else:
 			sys.exit(f"sem var_name depois de tipo na linha  {self.tokens.line}")
@@ -446,12 +468,12 @@ class Parser:
 	def parseIf(self):
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo != "open_parenteses":
-			self.print_token()
+			
 			sys.exit(f"no ( after if on line {self.tokens.line}")
 
 		condition = self.parseOr()
 		if self.tokens.actual.tipo != "close_parenteses":
-			self.print_token()
+			
 			sys.exit(f"no ) closing if on line {self.tokens.line}")
 
 		self.getNextNotComentary()
@@ -517,12 +539,23 @@ class Parser:
 				cmp = CompOp(self.tokens.actual.tipo, [cmp, self.parseExpression()])
 			return cmp
 		return exp
-				
+
+	def variable_already_declared(self):
+		var_name = self.tokens.actual.value
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo == "=":
+			exp = self.parseOr()
+			return SetVar(0, [var_name, exp])
+		else:
+			
+			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 
 	def command(self):
 		node = None
 		if self.tokens.actual.tipo == "var_type":
-			node = self.variable()
+			node = self.variable_with_type()
+		elif self.tokens.actual.tipo == "var":
+			node = self.variable_already_declared()
 		elif self.tokens.actual.tipo == "print":
 			node = self.println()
 		elif self.tokens.actual.tipo == "if":
@@ -548,6 +581,7 @@ class Parser:
 
 		if self.tokens.actual.tipo != "close_chaves":
 			sys.exit(f"block cant end with {self.tokens.actual.tipo}")
+
 		return block
 
 	def run(self, code: str):
@@ -560,7 +594,7 @@ class Parser:
 	def print_all_tokens(self):
 		self.tokens.selectNext()
 		while self.tokens.actual.tipo != "EOF":
-			self.print_token()
+			
 			# print()
 			self.tokens.selectNext()
 		
