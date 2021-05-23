@@ -42,7 +42,7 @@ class UnOp(Node):
 
 class IntVal(Node):
 	def Evaluate(self):
-		return self.value
+		return ["int", self.value]
 
 class NoOp(Node):
 	def Evaluate(self):
@@ -140,14 +140,14 @@ class BoolVal(Node):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return bool(self.children[0])
+		return ["bool", bool(self.children[0])]
 
 class StrVal(Node):
 	def __init__(self, children):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return str(self.children[0])
+		return ["string", str(self.children[0])]
 
 
 class Block(Node):
