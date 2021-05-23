@@ -19,13 +19,13 @@ class BinOP(Node):
 		if c0[0] != "int" or c1[0] != "int":
 			sys.exit("conta com variavel diferente de int")
 		if self.value == "add":
-			return c0[1] + c1[1]
+			return ["int", c0[1] + c1[1]]
 		if self.value == "sub":
-			return c0[1] - c1[1]
+			return ["int", c0[1] - c1[1]]
 		if self.value == "mult":
-			return c0[1] * c1[1]
+			return ["int", c0[1] * c1[1]]
 		if self.value == "div":
-			return int(c0[1] / c1[1])
+			return ["int", int(c0[1] / c1[1])]
 
 		sys.exit("DEU RUIM")
 
@@ -94,9 +94,9 @@ class Readln(Node):
     def Evaluate(self):
         i = input()
         if i.isnumeric():
-            return int(i)
+            return ["int", int(i)]
         else:
-            raise ValueError("input must be an int")
+            return ["string", i]
 
 class CompOp(Node):
 	def Evaluate(self):
@@ -160,9 +160,6 @@ class Block(Node):
 
 	def AddNode(self, node):
 		self.children.append(node)
-
-	def ClearNodes(self):
-		self.children = []
 
 
 accepted_chars = "[-+*/ 0-9()_a-zA-Z;=]"
@@ -406,14 +403,16 @@ class Parser:
 			self.getNextNotComentary()
 			return VarVal(children=[var])
 
-		elif self.tokens.actual.tipo == "readln":
-			self.tokens.selectNext()
+		if self.tokens.actual.tipo == "readln":
+			self.getNextNotComentary()
 			if self.tokens.actual.tipo != "open_parenteses":
 				sys.exit("sem parenteses depois de readln")
 
-			self.tokens.selectNext()
+			self.getNextNotComentary()
 			if self.tokens.actual.tipo != "close_parenteses":
 				sys.exit("sem fechar parenteses depois de readln")
+			return Readln()
+			
 
 		if self.tokens.actual.tipo == ";":
 			sys.exit(f"operacao no final da linha {self.tokens.line}")
