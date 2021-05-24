@@ -104,19 +104,19 @@ class CompOp(Node):
 		c1 = self.children[1].Evaluate()
 
 		if self.value == "==":
-			return c0 == c1
+			return ["bool", c0 == c1]
 
 		if self.value == "<":
-			return c0 < c1
+			return ["bool", c0 < c1]
 
 		if self.value == ">":
-			return c0 > c1
+			return ["bool", c0 > c1]
 
 		if self.value == "&&":
-			return bool(c0) and bool(c1)
+			return ["bool", bool(c0) and bool(c1)]
 
 		if self.value == "||":
-			return bool(c0) or bool(c1)
+			return ["bool", bool(c0) or bool(c1)]
 		
 		sys.exit("DEU RUIM 3")
 
