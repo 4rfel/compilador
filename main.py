@@ -1,18 +1,71 @@
 import sys
 from abc import ABC, abstractmethod
 
-var_table = {} # {varname:[vartipo, varvalue]}
+class STDOUTWriter():
+	def __init__(self) -> None:
+		pass
+
+	def Write(instructions:str):
+		sys.stdout.write("  " + instructions + "\n")
+
+class SymbolTable():
+	def __init__(self) -> None:
+		self.table = {} # {varname:[vartipo, varvalue, bytesToEBP]}
+		self.bytesToEBP = 0
+		self.intBytesQuant = 4
+		self.boolBytesQuant = 4
+
+	def SetVar(self, var_type, var_name, var_value):
+		if var_type == "int":
+			self.bytesToEBP += self.intBytesQuant
+		elif var_type == "bool":
+			self.bytesToEBP += self.boolBytesQuant
+		else:
+			sys.exit(f"invalid var type: {var_type}")
+		
+		self.table[var_name] = [var_type, var_value, self.bytesToEBP]
+
+	def GetVar(self, var_name):
+		return self.table[var_name]
+
+	def GetVarType(self, var_name):
+		if var_name not in self.table:
+			sys.exit(f"var {var_name} is wasnt declared") 
+		
+		return self.table[var_name][0]
+
+	def GetVarValue(self, var_name):
+		if var_name not in self.table:
+			sys.exit(f"var {var_name} is wasnt declared") 
+		
+		return self.table[var_name][1]
+	
+	def GetBytesToEBP(self, var_name):
+		if var_name not in self.table:
+			sys.exit(f"var {var_name} is wasnt declared") 
+		
+		return self.table[var_name][2]
 
 class Node(ABC):
+	id = 0
+
 	def __init__(self, value = 0, children = []):
 		self.value = value
 		self.children:Node = children
+		self.id = self.newId()
+
+	def newId(self):
+		Node.id += 1
+		return Node.id
 
 	@abstractmethod
 	def Evaluate(self):
 		return
 
 class BinOP(Node):
+	def __init__(self, value, children):
+		super().__init__(value=value, children=children)
+
 	def Evaluate(self):
 		c0 = self.children[0].Evaluate()
 		c1 = self.children[1].Evaluate()
@@ -30,6 +83,9 @@ class BinOP(Node):
 		sys.exit("DEU RUIM")
 
 class UnOp(Node):
+	def __init__(self, value, children):
+		super().__init__(value=value, children=children)
+
 	def Evaluate(self):
 		if self.value == "add":
 			return self.children.Evaluate()
@@ -41,22 +97,47 @@ class UnOp(Node):
 		sys.exit("DEU RUIM 2")
 
 class IntVal(Node):
+	def __init__(self, value):
+		super().__init__(value=value, children=[])
+
 	def Evaluate(self):
+		STDOUTWriter.Write(f"MOV EBX, {self.value} ; int val")
+		STDOUTWriter.Write("")
 		return ["int", self.value]
 
 class NoOp(Node):
+	def __init__(self):
+		super().__init__(value=None, children=[])
+
 	def Evaluate(self):
 		return super().Evaluate()
 
 class PrintOp(Node):
+	def __init__(self, children):
+		super().__init__(value=None, children=children)
+
 	def Evaluate(self):
-		print(self.children[0].Evaluate()[1])
+		var = self.children[0].Evaluate()
+		if len(var) == 3:
+			STDOUTWriter.Write(f"MOV EBX, [EBP-{var[2]}]")
+		else:
+			STDOUTWriter.Write(f"MOV EBX, {var[1]}")
+		
+		STDOUTWriter.Write("PUSH EBX ; printing")
+		STDOUTWriter.Write("CALL print")
+		STDOUTWriter.Write("POP EBX")
+		STDOUTWriter.Write("")
+
+		# print(var[1])
 
 class SetVar(Node):
+	def __init__(self, children, symbolTable:SymbolTable):
+		super().__init__(value=None, children=children)
+		self.symbolTable:SymbolTable = symbolTable
+
 	def Evaluate(self):
-		global var_table
 		var_name = self.children[0]
-		if var_name not in var_table:
+		if var_name not in self.symbolTable.table:
 			
 			var_type = self.children[1]
 			if len(self.children) == 3:
@@ -64,41 +145,56 @@ class SetVar(Node):
 			else:
 				if(var_type == "bool"):
 					var_value = False
-				if(var_type == "string"):
-					var_value = ""
+				# if(var_type == "string"):
+				# 	var_value = ""
 				if(var_type == "int"):
 					var_value = 0
 		else:
-			var_type = var_table[var_name][0]
+			var_type = self.symbolTable.GetVarType()
 			var_value = self.children[1].Evaluate()
 		
 		if type(var_value) == list:
 			var_value = var_value[1]
 		
-
 		if(var_type == "bool"):
-			var_table[var_name] = [var_type, bool(var_value)]
-		if(var_type == "string"):
-			var_table[var_name] = [var_type, str(var_value)]
-		if(var_type == "int"):
-			var_table[var_name] = [var_type, int(var_value)]
+			var_value = bool(var_value)
+		# if(var_type == "string"):
+		# 	self.symbolTable.table[var_name] = [var_type, str(var_value)]
+		elif(var_type == "int"):
+			var_value = int(var_value)
+		
+		self.symbolTable.SetVar(var_type, var_name, var_value)
+		STDOUTWriter.Write(f"PUSH DWORD 0 ; setting var")
+		STDOUTWriter.Write(f"MOV [EBP-{self.symbolTable.GetBytesToEBP(var_name)}], EBX")
+		STDOUTWriter.Write("")
+
 
 class VarVal(Node):
-	def __init__(self, children):
+	def __init__(self, children, symbolTable:SymbolTable):
 		super().__init__(value=None, children=children)
+		self.symbolTable = symbolTable
 
 	def Evaluate(self):
-		return var_table[self.children[0]]
+		STDOUTWriter.Write(f"MOV EBX, [EBP-{self.symbolTable.GetBytesToEBP(self.children[0])}] ; getting var")
+		STDOUTWriter.Write("")
 
-class Readln(Node):
-    def Evaluate(self):
-        i = input()
-        if i.isnumeric():
-            return ["int", int(i)]
-        else:
-            return ["string", i]
+		return self.symbolTable.GetVar(self.children[0])
+
+# class Readln(Node):
+# 	def __init__(self):
+# 		super().__init__(value=None, children=[])
+		
+# 	def Evaluate(self):
+# 		i = input()
+# 		if i.isnumeric():
+# 			return ["int", int(i)]
+# 		else:
+# 			return ["string", i]
 
 class CompOp(Node):
+	def __init__(self, value, children):
+		super().__init__(value=value, children=children)
+
 	def Evaluate(self):
 		c0 = self.children[0].Evaluate()
 		c1 = self.children[1].Evaluate()
@@ -121,7 +217,11 @@ class CompOp(Node):
 		sys.exit("DEU RUIM 3")
 
 class IfOp(Node):
+	def __init__(self, children):
+		super().__init__(value=None, children=children)
+
 	def Evaluate(self):
+		symbol = f"if_{self.id}"
 		if self.children[0].Evaluate():
 			return self.children[1].Evaluate()
 		elif len(self.children) == 3:
@@ -132,6 +232,7 @@ class WhileOp(Node):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
+		symbol = f"while_{self.id}"
 		while self.children[0].Evaluate():
 			self.children[1].Evaluate()
 
@@ -359,7 +460,9 @@ class Tokenizer:
 
 class Parser:
 	def __init__(self):
-		self.tokens: Tokenizer = None
+		self.tokens:Tokenizer = None
+		self.symbolTable:SymbolTable = SymbolTable()
+		self.writer = STDOUTWriter()
 
 	def print_token(self):
 		print(self.tokens.actual.tipo, self.tokens.actual.value)
@@ -378,7 +481,7 @@ class Parser:
 				sys.exit(f"2 integers seguidas na linha  {self.tokens.line}")
 			elif self.tokens.actual.tipo == "open_parenteses":
 				sys.exit(f"int imediatamente antes de abrir parenteses na linha  {self.tokens.line}")
-			return IntVal(value, [])
+			return IntVal(value)
 
 		if self.tokens.actual.tipo == "add" or self.tokens.actual.tipo == "sub" or self.tokens.actual.tipo == "!":
 			return UnOp(self.tokens.actual.tipo, self.parseFactor())
@@ -393,25 +496,25 @@ class Parser:
 			self.getNextNotComentary()
 			return BoolVal(children=[value])
 
-		if self.tokens.actual.tipo == "string":
-			value = self.tokens.actual.value
-			self.getNextNotComentary()
-			return StrVal(children=[value])
+		# if self.tokens.actual.tipo == "string":
+		# 	value = self.tokens.actual.value
+		# 	self.getNextNotComentary()
+		# 	return StrVal(children=[value])
 
 		if self.tokens.actual.tipo == "var":
 			var = self.tokens.actual.value
 			self.getNextNotComentary()
-			return VarVal(children=[var])
+			return VarVal([var], self.symbolTable)
 
-		if self.tokens.actual.tipo == "readln":
-			self.getNextNotComentary()
-			if self.tokens.actual.tipo != "open_parenteses":
-				sys.exit("sem parenteses depois de readln")
+		# if self.tokens.actual.tipo == "readln":
+		# 	self.getNextNotComentary()
+		# 	if self.tokens.actual.tipo != "open_parenteses":
+		# 		sys.exit("sem parenteses depois de readln")
 
-			self.getNextNotComentary()
-			if self.tokens.actual.tipo != "close_parenteses":
-				sys.exit("sem fechar parenteses depois de readln")
-			return Readln()
+		# 	self.getNextNotComentary()
+		# 	if self.tokens.actual.tipo != "close_parenteses":
+		# 		sys.exit("sem fechar parenteses depois de readln")
+		# 	return Readln()
 			
 
 		if self.tokens.actual.tipo == ";":
@@ -446,9 +549,9 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "=":
 				exp = self.parseOr()
-				return SetVar(0, [var_name, var_type, exp])
+				return SetVar([var_name, var_type, exp], self.symbolTable)
 			elif self.tokens.actual.tipo == ";":
-				return SetVar(0, [var_name, var_type])
+				return SetVar([var_name, var_type], self.symbolTable)
 			else:
 				
 				sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
@@ -460,7 +563,7 @@ class Parser:
 		if self.tokens.actual.tipo == "open_parenteses":
 			exp = self.parseOr()
 			self.getNextNotComentary()
-			return PrintOp(0, [exp])
+			return PrintOp([exp])
 		sys.exit(f"sem ( depois de chamr println na linha  {self.tokens.line}")
 
 
@@ -544,9 +647,8 @@ class Parser:
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "=":
 			exp = self.parseOr()
-			return SetVar(0, [var_name, exp])
+			return SetVar([var_name, exp], self.symbolTable)
 		else:
-			
 			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 
 	def command(self):
@@ -584,11 +686,17 @@ class Parser:
 		return block
 
 	def run(self, code: str):
+		with open("header.txt", "r") as header:
+			STDOUTWriter.Write(header.read())
 		self.tokens = Tokenizer(code)
 		# self.print_all_tokens()
 		# return
 		self.getNextNotComentary()
 		self.parseBlock().Evaluate()
+		STDOUTWriter.Write("\n; interrupcao de saida")
+		STDOUTWriter.Write("POP EBP")
+		STDOUTWriter.Write("MOV EAX, 1")
+		STDOUTWriter.Write("INT 0x80")
 
 	def print_all_tokens(self):
 		self.tokens.selectNext()
