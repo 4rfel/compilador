@@ -2,11 +2,16 @@ import sys
 from abc import ABC, abstractmethod
 
 class STDOUTWriter():
-	def __init__(self) -> None:
-		pass
+	instruction = ""
+	with open("header.txt", "r") as header:
+		instruction += header.read()
 
-	def Write(instructions:str):
-		sys.stdout.write("  " + instructions + "\n")
+	def AddInstruction(instructions:str):
+		STDOUTWriter.instruction += "  " + instructions + "\n"
+
+	def Write():
+		sys.stdout.write(STDOUTWriter.instruction)
+		
 
 class SymbolTable():
 	def __init__(self) -> None:
@@ -16,14 +21,19 @@ class SymbolTable():
 		self.boolBytesQuant = 4
 
 	def SetVar(self, var_type, var_name, var_value):
-		if var_type == "int":
-			self.bytesToEBP += self.intBytesQuant
-		elif var_type == "bool":
-			self.bytesToEBP += self.boolBytesQuant
+		if var_name not in self.table:
+			if var_type == "int":
+				self.bytesToEBP += self.intBytesQuant
+			elif var_type == "bool":
+				self.bytesToEBP += self.boolBytesQuant
+			else:
+				sys.exit(f"invalid var type: {var_type}")
+			
+			bytesToEBP = self.bytesToEBP
 		else:
-			sys.exit(f"invalid var type: {var_type}")
+			bytesToEBP = self.table[var_name][2]
 		
-		self.table[var_name] = [var_type, var_value, self.bytesToEBP]
+		self.table[var_name] = [var_type, var_value, bytesToEBP]
 
 	def GetVar(self, var_name):
 		return self.table[var_name]
@@ -68,16 +78,37 @@ class BinOP(Node):
 
 	def Evaluate(self):
 		c0 = self.children[0].Evaluate()
+		STDOUTWriter.AddInstruction("PUSH EBX")
 		c1 = self.children[1].Evaluate()
+		STDOUTWriter.AddInstruction("POP EAX")
+		
 		if c0[0] != "int" or c1[0] != "int":
 			sys.exit("conta com variavel diferente de int")
+
 		if self.value == "add":
+			STDOUTWriter.AddInstruction("ADD EAX, EBX")
+			STDOUTWriter.AddInstruction("MOV EBX, EAX")
+			STDOUTWriter.AddInstruction("")
 			return ["int", c0[1] + c1[1]]
+
 		if self.value == "sub":
+			STDOUTWriter.AddInstruction("SUB EAX, EBX")
+			STDOUTWriter.AddInstruction("MOV EBX, EAX")
+			STDOUTWriter.AddInstruction("")
+
 			return ["int", c0[1] - c1[1]]
+		
 		if self.value == "mult":
+			STDOUTWriter.AddInstruction("IMUL EBX")
+			STDOUTWriter.AddInstruction("MOV EBX, EAX")
+			STDOUTWriter.AddInstruction("")
+
 			return ["int", c0[1] * c1[1]]
+		
 		if self.value == "div":
+			STDOUTWriter.AddInstruction("IDIV EBX")
+			STDOUTWriter.AddInstruction("MOV EBX, EAX")
+			STDOUTWriter.AddInstruction("")
 			return ["int", int(c0[1] / c1[1])]
 
 		sys.exit("DEU RUIM")
@@ -87,12 +118,19 @@ class UnOp(Node):
 		super().__init__(value=value, children=children)
 
 	def Evaluate(self):
-		if self.value == "add":
-			return self.children.Evaluate()
+		self.children.Evaluate()
+
 		if self.value == "sub":
-			return -self.children.Evaluate()
+			STDOUTWriter.AddInstruction("SUB EAX, 0")
+			STDOUTWriter.AddInstruction("SUB EAX, EBX")
+			STDOUTWriter.AddInstruction("MOV EBX, EAX")
+			STDOUTWriter.AddInstruction("")
+			return
+			
 		if self.value == "!":
-			return int(not self.children.Evaluate())
+			STDOUTWriter.AddInstruction("NOT EBX")
+			STDOUTWriter.AddInstruction("")
+			return
 
 		sys.exit("DEU RUIM 2")
 
@@ -101,8 +139,8 @@ class IntVal(Node):
 		super().__init__(value=value, children=[])
 
 	def Evaluate(self):
-		STDOUTWriter.Write(f"MOV EBX, {self.value} ; int val")
-		STDOUTWriter.Write("")
+		STDOUTWriter.AddInstruction(f"MOV EBX, {self.value} ; int val")
+		STDOUTWriter.AddInstruction("")
 		return ["int", self.value]
 
 class NoOp(Node):
@@ -117,16 +155,12 @@ class PrintOp(Node):
 		super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		var = self.children[0].Evaluate()
-		if len(var) == 3:
-			STDOUTWriter.Write(f"MOV EBX, [EBP-{var[2]}]")
-		else:
-			STDOUTWriter.Write(f"MOV EBX, {var[1]}")
+		self.children[0].Evaluate()
 		
-		STDOUTWriter.Write("PUSH EBX ; printing")
-		STDOUTWriter.Write("CALL print")
-		STDOUTWriter.Write("POP EBX")
-		STDOUTWriter.Write("")
+		STDOUTWriter.AddInstruction("PUSH EBX ; printing")
+		STDOUTWriter.AddInstruction("CALL print")
+		STDOUTWriter.AddInstruction("POP EBX")
+		STDOUTWriter.AddInstruction("")
 
 		# print(var[1])
 
@@ -138,35 +172,34 @@ class SetVar(Node):
 	def Evaluate(self):
 		var_name = self.children[0]
 		if var_name not in self.symbolTable.table:
+			STDOUTWriter.AddInstruction(f"PUSH DWORD 0 ; setting var")
 			
 			var_type = self.children[1]
 			if len(self.children) == 3:
 				var_value = self.children[2].Evaluate()
 			else:
-				if(var_type == "bool"):
-					var_value = False
+				var_value = None
 				# if(var_type == "string"):
 				# 	var_value = ""
-				if(var_type == "int"):
-					var_value = 0
 		else:
-			var_type = self.symbolTable.GetVarType()
+			var_type = self.symbolTable.GetVarType(var_name)
 			var_value = self.children[1].Evaluate()
 		
 		if type(var_value) == list:
 			var_value = var_value[1]
 		
-		if(var_type == "bool"):
-			var_value = bool(var_value)
-		# if(var_type == "string"):
-		# 	self.symbolTable.table[var_name] = [var_type, str(var_value)]
-		elif(var_type == "int"):
-			var_value = int(var_value)
+		if var_value != None:
+			if(var_type == "bool"):
+				var_value = bool(var_value)
+			# if(var_type == "string"):
+			# 	self.symbolTable.table[var_name] = [var_type, str(var_value)]
+			elif(var_type == "int"):
+				var_value = int(var_value)
 		
 		self.symbolTable.SetVar(var_type, var_name, var_value)
-		STDOUTWriter.Write(f"PUSH DWORD 0 ; setting var")
-		STDOUTWriter.Write(f"MOV [EBP-{self.symbolTable.GetBytesToEBP(var_name)}], EBX")
-		STDOUTWriter.Write("")
+		if var_value != None:
+			STDOUTWriter.AddInstruction(f"MOV [EBP-{self.symbolTable.GetBytesToEBP(var_name)}], EBX")
+		STDOUTWriter.AddInstruction("")
 
 
 class VarVal(Node):
@@ -175,8 +208,8 @@ class VarVal(Node):
 		self.symbolTable = symbolTable
 
 	def Evaluate(self):
-		STDOUTWriter.Write(f"MOV EBX, [EBP-{self.symbolTable.GetBytesToEBP(self.children[0])}] ; getting var")
-		STDOUTWriter.Write("")
+		STDOUTWriter.AddInstruction(f"MOV EBX, [EBP-{self.symbolTable.GetBytesToEBP(self.children[0])}] ; getting var")
+		STDOUTWriter.AddInstruction("")
 
 		return self.symbolTable.GetVar(self.children[0])
 
@@ -196,23 +229,35 @@ class CompOp(Node):
 		super().__init__(value=value, children=children)
 
 	def Evaluate(self):
+
 		c0 = self.children[0].Evaluate()
+		STDOUTWriter.AddInstruction("PUSH EBX")
+
 		c1 = self.children[1].Evaluate()
 
+		STDOUTWriter.AddInstruction("POP EAX")
+		STDOUTWriter.AddInstruction("CMP EAX, EBX")
+
 		if self.value == "==":
-			return ["bool", c0 == c1]
+			STDOUTWriter.AddInstruction("CALL binop_je")
+			return ["bool", c0[1] == c1[1]]
 
 		if self.value == "<":
-			return ["bool", c0 < c1]
+			STDOUTWriter.AddInstruction("CALL binop_jl")
+			return ["bool", c0[1] < c1[1]]
 
 		if self.value == ">":
-			return ["bool", c0 > c1]
+			STDOUTWriter.AddInstruction("CALL binop_jg")
+			return ["bool", c0[1] > c1[1]]
 
 		if self.value == "&&":
-			return ["bool", bool(c0) and bool(c1)]
+			STDOUTWriter.AddInstruction(f"AND EBX, EAX")
+			return ["bool", bool(c0[1]) and bool(c1[1])]
 
 		if self.value == "||":
-			return ["bool", bool(c0) or bool(c1)]
+			STDOUTWriter.AddInstruction(f"OR EBX, EAX")
+			return ["bool", bool(c0[1]) or bool(c1[1])]
+
 		
 		sys.exit("DEU RUIM 3")
 
@@ -221,34 +266,59 @@ class IfOp(Node):
 		super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		symbol = f"if_{self.id}"
-		if self.children[0].Evaluate():
-			return self.children[1].Evaluate()
-		elif len(self.children) == 3:
-			return self.children[2].Evaluate()
+		self.children[0].Evaluate()[1]
+		STDOUTWriter.AddInstruction("CMP EBX, False")
+		if len(self.children) == 3:
+			STDOUTWriter.AddInstruction(f"JE else_{self.id}")
+		else:
+			STDOUTWriter.AddInstruction(f"JE end_if_{self.id}")
+			
+
+		self.children[1].Evaluate()
+
+		if len(self.children) == 3:
+			STDOUTWriter.AddInstruction(f"JMP end_if_{self.id}")
+			STDOUTWriter.AddInstruction(f"else_{self.id}:")
+			self.children[2].Evaluate()
+
+		STDOUTWriter.AddInstruction(f"end_if_{self.id}:")
+		
+
 
 class WhileOp(Node):
 	def __init__(self, children):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		symbol = f"while_{self.id}"
-		while self.children[0].Evaluate():
-			self.children[1].Evaluate()
+		STDOUTWriter.AddInstruction(f"while_{self.id}:")
+		self.children[0].Evaluate()
+		STDOUTWriter.AddInstruction("CMP EBX, False")
+		STDOUTWriter.AddInstruction(f"JE while_exit_{self.id}")
+
+		self.children[1].Evaluate()
+		STDOUTWriter.AddInstruction(f"JMP while_{self.id}")
+		STDOUTWriter.AddInstruction(f"while_exit_{self.id}:")
+
 
 class BoolVal(Node):
 	def __init__(self, children):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return ["bool", bool(self.children[0])]
+		value = bool(self.children[0])
+		if value:
+			STDOUTWriter.AddInstruction("CALL binop_true ; bool val")
+		else:
+			STDOUTWriter.AddInstruction("CALL binop_false ; bool val")
 
-class StrVal(Node):
-	def __init__(self, children):
-			super().__init__(value=None, children=children)
+		return ["bool", value]
 
-	def Evaluate(self):
-		return ["string", str(self.children[0])]
+# class StrVal(Node):
+# 	def __init__(self, children):
+# 			super().__init__(value=None, children=children)
+
+# 	def Evaluate(self):
+# 		return ["string", str(self.children[0])]
 
 
 class Block(Node):
@@ -686,17 +756,16 @@ class Parser:
 		return block
 
 	def run(self, code: str):
-		with open("header.txt", "r") as header:
-			STDOUTWriter.Write(header.read())
 		self.tokens = Tokenizer(code)
 		# self.print_all_tokens()
 		# return
 		self.getNextNotComentary()
 		self.parseBlock().Evaluate()
-		STDOUTWriter.Write("\n; interrupcao de saida")
-		STDOUTWriter.Write("POP EBP")
-		STDOUTWriter.Write("MOV EAX, 1")
-		STDOUTWriter.Write("INT 0x80")
+		STDOUTWriter.AddInstruction("\n; interrupcao de saida")
+		STDOUTWriter.AddInstruction("POP EBP")
+		STDOUTWriter.AddInstruction("MOV EAX, 1")
+		STDOUTWriter.AddInstruction("INT 0x80")
+		STDOUTWriter.Write()
 
 	def print_all_tokens(self):
 		self.tokens.selectNext()
