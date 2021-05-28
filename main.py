@@ -121,7 +121,7 @@ class UnOp(Node):
 		self.children.Evaluate()
 
 		if self.value == "sub":
-			STDOUTWriter.AddInstruction("SUB EAX, 0")
+			STDOUTWriter.AddInstruction("MOV EAX, 0")
 			STDOUTWriter.AddInstruction("SUB EAX, EBX")
 			STDOUTWriter.AddInstruction("MOV EBX, EAX")
 			STDOUTWriter.AddInstruction("")
