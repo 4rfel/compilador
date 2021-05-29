@@ -106,6 +106,7 @@ class BinOP(Node):
 			return ["int", c0[1] * c1[1]]
 		
 		if self.value == "div":
+			STDOUTWriter.AddInstruction("MOV EDX, 0")
 			STDOUTWriter.AddInstruction("IDIV EBX")
 			STDOUTWriter.AddInstruction("MOV EBX, EAX")
 			STDOUTWriter.AddInstruction("")
