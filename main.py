@@ -90,6 +90,22 @@ class VarVal(Node):
 	def Evaluate(self):
 		return var_table[self.children[0]]
 
+class FuncCall(Node):
+	def __init__(self, value, children):
+		super().__init__(value=value, children=children)
+
+	def Evaluate(self):
+		func_name = self.value
+		func_atributes = self.children
+		raise NotImplementedError("FuncCall is not implemented")
+
+class FuncDec(Node):
+	def __init__(self, children):
+		super().__init__(value=None, children=children)
+
+	def Evaluate(self):
+		return super().Evaluate()
+
 class Readln(Node):
     def Evaluate(self):
         i = input()
@@ -276,6 +292,10 @@ class Tokenizer:
 			self.actual = Token(tipo="close_chaves", value="}")
 			self.position += 1
 
+		elif self.origin[self.position] == ",":
+			self.actual = Token(tipo=",", value=",")
+			self.position += 1
+
 		elif self.origin[self.position] == "\"":
 			tmp = ""
 			self.position += 1
@@ -298,6 +318,10 @@ class Tokenizer:
 		elif self.origin[self.position:self.position+len("true")] == "true":
 			self.actual = Token(tipo="bool", value="true")
 			self.position += len("true")
+
+		elif self.origin[self.position:self.position+len("return")] == "return":
+			self.actual = Token(tipo="bool", value="return")
+			self.position += len("return")
 
 		elif self.origin[self.position:self.position+len("false")] == "false":
 			self.actual = Token(tipo="bool", value="false")
@@ -401,6 +425,27 @@ class Parser:
 		if self.tokens.actual.tipo == "var":
 			var = self.tokens.actual.value
 			self.getNextNotComentary()
+			if self.tokens.actual.tipo == "(":
+				arguments = []
+				self.getNextNotComentary()
+				while self.tokens.actual.tipo != ")":
+					if self.tokens.actual.tipo == "integer":
+						arguments.append(IntVal(self.tokens.actual.value, []))
+					elif self.tokens.actual.tipo == "bool":
+						arguments.append(BoolVal([self.tokens.actual.value]))
+					elif self.tokens.actual.tipo == "string":
+						arguments.append(StrVal([self.tokens.actual.value]))
+
+					self.getNextNotComentary()
+					if self.tokens.actual.tipo == ",":
+						self.getNextNotComentary()
+					elif self.tokens.actual.tipo != ")":
+						sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
+				if self.tokens.actual.tipo != ")":
+					sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
+
+				self.getNextNotComentary() #consume close parenthesis
+				return FuncCall(var, arguments)
 			return VarVal(children=[var])
 
 		if self.tokens.actual.tipo == "readln":
@@ -438,22 +483,14 @@ class Parser:
 
 		return branch
 
-	def variable_with_type(self):
-		var_type = self.tokens.actual.value
-		self.getNextNotComentary()
-		if self.tokens.actual.tipo == "var":
-			var_name = self.tokens.actual.value
-			self.getNextNotComentary()
+	def variable_with_type(self, var_name, var_type):
 			if self.tokens.actual.tipo == "=":
 				exp = self.parseOr()
 				return SetVar(0, [var_name, var_type, exp])
 			elif self.tokens.actual.tipo == ";":
 				return SetVar(0, [var_name, var_type])
 			else:
-				
 				sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
-		else:
-			sys.exit(f"sem var_name depois de tipo na linha  {self.tokens.line}")
 
 	def println(self):
 		self.getNextNotComentary()
@@ -539,20 +576,45 @@ class Parser:
 			return cmp
 		return exp
 
-	def variable_already_declared(self):
+	def variable_already_declared(self, var_name):
+		exp = self.parseOr()
+		return SetVar(0, [var_name, exp])
+		
+	def var_with_type_or_function(self):
+		var_type = self.tokens.actual.value
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo == "var":
+			var_name = self.tokens.actual.value
+			self.getNextNotComentary()
+			if self.tokens.actual.tipo == "=":
+				self.variable_with_type(var_name, var_type)
+			elif self.tokens.actual.tipo == "(":
+				self.declare_function()
+			else:
+				sys.exit(f"after symbol invalid token {self.tokens.actual.tipo}")
+		else:
+			sys.exit(f"sem var_name depois de tipo na linha  {self.tokens.line}")
+
+	def var_already_declared_or_call_function(self):
 		var_name = self.tokens.actual.value
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "=":
-			exp = self.parseOr()
-			return SetVar(0, [var_name, exp])
+			self.variable_already_declared(var_name)
+		elif self.tokens.actual.tipo == "(":
+			self.call_function()
 		else:
-			
-			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
+			sys.exit(f"invalid function calling or variable assignment on line {self.tokens.line}")
+
+	def declare_function(self):
+		raise NotImplementedError("function declaration not implemented yet")
+
+	def call_function(self):
+		raise NotImplementedError("calling function not implemented yet")
 
 	def command(self):
 		node = None
 		if self.tokens.actual.tipo == "var_type":
-			node = self.variable_with_type()
+			node = self.var_with_type_or_function()
 		elif self.tokens.actual.tipo == "var":
 			node = self.variable_already_declared()
 		elif self.tokens.actual.tipo == "print":
