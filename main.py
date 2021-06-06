@@ -127,6 +127,10 @@ class FuncCall(Node):
 		VarTable.escopo = self.func_name # varname:[vartipo, varvalue=None]
 		var_table = VarTable.getTable()
 		var_names = funcs_table[self.func_name]["arguments"]
+
+		if(len(var_names) != len(func_arguments)):
+			sys.exit(f"quant diferente de arg na funcao {self.func_name}")
+
 		for i in range(len(var_names)):
 			arg_type_passed, arg_value = func_arguments[i]
 			arg_type, arg_name = var_names[i]
