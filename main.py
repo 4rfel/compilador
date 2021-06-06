@@ -128,7 +128,6 @@ class FuncCall(Node):
 			sys.exit("funcao nao declarada")
 		func_arguments = self.children # [type, value]
 		prev_escopo = VarTable.escopo
-		prev_escopo_table = VarTable.getTable()
 
 		var_table = {}
 		var_names = funcs_table[self.func_name]["arguments"]
@@ -139,9 +138,6 @@ class FuncCall(Node):
 		for i in range(len(var_names)):
 			arg_type_passed, arg_value = func_arguments[i].Evaluate()
 			arg_type, arg_name = var_names[i]
-			if(arg_type_passed == "integer"): arg_type_passed = "int"
-			if(arg_type_passed == "var"):
-				arg_type_passed, arg_value = prev_escopo_table[arg_value]
 				
 			if(arg_type_passed != arg_type): 
 				sys.exit("tipo errado na funcao")
@@ -766,9 +762,13 @@ class Parser:
 			funcs.append(self.parseFuncDec())
 			self.getNextNotComentary()
 
+
 		for func in funcs:
 			func.Evaluate()
 
+		if "main" not in funcs_table:
+			sys.exit("precisa ter main") 
+			
 		main = FuncCall("main", [])
 		main.Evaluate()
 
