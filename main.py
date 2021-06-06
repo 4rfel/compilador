@@ -1,7 +1,23 @@
 import sys
 from abc import ABC, abstractmethod
+from typing import List
 
-var_table = {} # {varname:[vartipo, varvalue]}
+funcs_table = {} # funcname:{argumets:[[type, name, value]], block:block, func_type:type}
+
+class VarTable():
+	table = {"main":{}} # escopo: {varname:[vartipo, varvalue]}
+	escopo = "main"
+	
+	def getTable():
+		if(VarTable.escopo not in VarTable.table):
+			VarTable.table[VarTable.escopo] = {}
+		return VarTable.table[VarTable.escopo]
+
+	def resetTable():
+		del(VarTable.table[VarTable.escopo])
+
+	def setTable(table):
+		VarTable.table[VarTable.escopo] = table
 
 class Node(ABC):
 	def __init__(self, value = 0, children = []):
@@ -17,7 +33,7 @@ class BinOP(Node):
 		c0 = self.children[0].Evaluate()
 		c1 = self.children[1].Evaluate()
 		if c0[0] != "int" or c1[0] != "int":
-			sys.exit("conta com variavel diferente de int")
+			sys.exit(f"conta com variavel diferente de int, {c0}, {c1}")
 		if self.value == "add":
 			return ["int", c0[1] + c1[1]]
 		if self.value == "sub":
@@ -54,7 +70,7 @@ class PrintOp(Node):
 
 class SetVar(Node):
 	def Evaluate(self):
-		global var_table
+		var_table = VarTable.getTable()
 		var_name = self.children[0]
 		if var_name not in var_table:
 			
@@ -83,28 +99,61 @@ class SetVar(Node):
 		if(var_type == "int"):
 			var_table[var_name] = [var_type, int(var_value)]
 
+		VarTable.setTable(var_table)
+
 class VarVal(Node):
 	def __init__(self, children):
 		super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return var_table[self.children[0]]
+		return VarTable.getTable()[self.children[0]]
 
-class FuncCall(Node):
-	def __init__(self, value, children):
-		super().__init__(value=value, children=children)
 
-	def Evaluate(self):
-		func_name = self.value
-		func_atributes = self.children
-		raise NotImplementedError("FuncCall is not implemented")
-
-class FuncDec(Node):
+class ReturnNode(Node):
 	def __init__(self, children):
 		super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return super().Evaluate()
+		return self.children[0].Evaluate()
+
+class FuncCall(Node):
+	def __init__(self, func_name, children=[]):
+		super().__init__(value=None, children=children)
+		self.func_name = func_name
+
+	def Evaluate(self):
+		func_arguments = self.children # [type, value]
+		prev_escopo = VarTable.escopo
+		VarTable.escopo = self.func_name # varname:[vartipo, varvalue=None]
+		var_table = VarTable.getTable()
+		var_names = funcs_table[self.func_name]["arguments"]
+		for i in range(len(var_names)):
+			arg_type_passed, arg_value = func_arguments[i]
+			arg_type, arg_name = var_names[i]
+			if(arg_type_passed == "integer"): arg_type_passed = "int"
+			if(arg_type_passed != arg_type): sys.exit("tipo errado na funcao")
+
+			var_table[arg_name] = [arg_type, arg_value]
+		
+		VarTable.setTable(var_table)
+
+		ret = funcs_table[self.func_name]["block"].Evaluate()
+
+		VarTable.resetTable()
+		VarTable.escopo = prev_escopo
+		return ret
+
+class FuncDec(Node):
+	def __init__(self, func_type, func_name, children, block):
+		super().__init__(value=None, children=children)
+		self.func_name = func_name
+		self.func_type = func_type
+		self.block = block
+
+	def Evaluate(self):
+		global funcs_table
+		funcs_table[self.func_name] = {"arguments":self.children, "block":self.block, "func_type":self.func_type } # funcname:{argumets:[[type, name]], block:block, func_type:type}
+
 
 class Readln(Node):
     def Evaluate(self):
@@ -149,7 +198,9 @@ class WhileOp(Node):
 
 	def Evaluate(self):
 		while self.children[0].Evaluate():
-			self.children[1].Evaluate()
+			a = self.children[1].Evaluate()
+			print(a)
+			if(a != None): return a
 
 class BoolVal(Node):
 	def __init__(self, children):
@@ -320,7 +371,7 @@ class Tokenizer:
 			self.position += len("true")
 
 		elif self.origin[self.position:self.position+len("return")] == "return":
-			self.actual = Token(tipo="bool", value="return")
+			self.actual = Token(tipo="return", value="return")
 			self.position += len("return")
 
 		elif self.origin[self.position:self.position+len("false")] == "false":
@@ -425,10 +476,10 @@ class Parser:
 		if self.tokens.actual.tipo == "var":
 			var = self.tokens.actual.value
 			self.getNextNotComentary()
-			if self.tokens.actual.tipo == "(":
+			if self.tokens.actual.tipo == "open_parenteses":
 				arguments = []
 				self.getNextNotComentary()
-				while self.tokens.actual.tipo != ")":
+				while self.tokens.actual.tipo != "close_parenteses":
 					if self.tokens.actual.tipo == "integer":
 						arguments.append(IntVal(self.tokens.actual.value, []))
 					elif self.tokens.actual.tipo == "bool":
@@ -439,9 +490,9 @@ class Parser:
 					self.getNextNotComentary()
 					if self.tokens.actual.tipo == ",":
 						self.getNextNotComentary()
-					elif self.tokens.actual.tipo != ")":
+					elif self.tokens.actual.tipo != "close_parenteses":
 						sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
-				if self.tokens.actual.tipo != ")":
+				if self.tokens.actual.tipo != "close_parenteses":
 					sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
 
 				self.getNextNotComentary() #consume close parenthesis
@@ -483,7 +534,12 @@ class Parser:
 
 		return branch
 
-	def variable_with_type(self, var_name, var_type):
+	def variable_with_type(self):
+		var_type = self.tokens.actual.value
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo == "var":
+			var_name = self.tokens.actual.value
+			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "=":
 				exp = self.parseOr()
 				return SetVar(0, [var_name, var_type, exp])
@@ -499,7 +555,6 @@ class Parser:
 			self.getNextNotComentary()
 			return PrintOp(0, [exp])
 		sys.exit(f"sem ( depois de chamr println na linha  {self.tokens.line}")
-
 
 	def parseIf(self):
 		self.getNextNotComentary()
@@ -579,44 +634,43 @@ class Parser:
 	def variable_already_declared(self, var_name):
 		exp = self.parseOr()
 		return SetVar(0, [var_name, exp])
-		
-	def var_with_type_or_function(self):
-		var_type = self.tokens.actual.value
-		self.getNextNotComentary()
-		if self.tokens.actual.tipo == "var":
-			var_name = self.tokens.actual.value
-			self.getNextNotComentary()
-			if self.tokens.actual.tipo == "=":
-				self.variable_with_type(var_name, var_type)
-			elif self.tokens.actual.tipo == "(":
-				self.declare_function()
-			else:
-				sys.exit(f"after symbol invalid token {self.tokens.actual.tipo}")
-		else:
-			sys.exit(f"sem var_name depois de tipo na linha  {self.tokens.line}")
 
 	def var_already_declared_or_call_function(self):
 		var_name = self.tokens.actual.value
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "=":
-			self.variable_already_declared(var_name)
-		elif self.tokens.actual.tipo == "(":
-			self.call_function()
+			return self.variable_already_declared(var_name)
+		elif self.tokens.actual.tipo == "open_parenteses":
+			return self.call_function(var_name)
+		elif self.tokens.actual.tipo == ";":
+			return NoOp()
 		else:
-			sys.exit(f"invalid function calling or variable assignment on line {self.tokens.line}")
+			sys.exit(f"invalid function calling or variable assignment on line {self.tokens.line}. {self.tokens.actual.tipo}")
 
-	def declare_function(self):
-		raise NotImplementedError("function declaration not implemented yet")
-
-	def call_function(self):
-		raise NotImplementedError("calling function not implemented yet")
+	def call_function(self, func_name):
+		if self.tokens.actual.tipo != "open_parenteses":
+			sys.exit("sem ( depois de chamar funcao")
+		self.getNextNotComentary()
+		args = []
+		while self.tokens.actual.tipo != "close_parenteses":
+			if self.tokens.actual.tipo not in ["integer", "bool", "string"]:
+				sys.exit("AAA")
+			args.append((self.tokens.actual.tipo, self.tokens.actual.value))
+			self.getNextNotComentary()
+			if self.tokens.actual.tipo == ",":
+				self.getNextNotComentary()
+				if self.tokens.actual.tipo not in ["integer", "bool", "string"]:
+					sys.exit("tem q ter arg depois de virgula")
+		
+		self.getNextNotComentary()
+		return FuncCall(func_name, args)
 
 	def command(self):
 		node = None
 		if self.tokens.actual.tipo == "var_type":
-			node = self.var_with_type_or_function()
+			node = self.variable_with_type()
 		elif self.tokens.actual.tipo == "var":
-			node = self.variable_already_declared()
+			node = self.var_already_declared_or_call_function()
 		elif self.tokens.actual.tipo == "print":
 			node = self.println()
 		elif self.tokens.actual.tipo == "if":
@@ -627,6 +681,9 @@ class Parser:
 			node = NoOp()
 		elif self.tokens.actual.tipo == "open_chaves":
 			node = self.parseBlock()
+		elif self.tokens.actual.tipo == "return":
+			node = ReturnNode(children=[self.parseOr()])
+		
 		return node
 
 	def parseBlock(self):
@@ -637,7 +694,8 @@ class Parser:
 
 		self.getNextNotComentary()
 		while self.tokens.actual.tipo != "close_chaves":
-			block.AddNode(self.command())
+			x = self.command()
+			block.AddNode(x)
 			self.getNextNotComentary()
 
 		if self.tokens.actual.tipo != "close_chaves":
@@ -645,17 +703,65 @@ class Parser:
 
 		return block
 
+	def parseFuncDec(self):
+		if self.tokens.actual.tipo not in "var_type":
+			sys.exit(f"invalid type for func declaration, {self.tokens.actual.tipo}")
+		func_type = self.tokens.actual.value
+
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo != "var":
+			sys.exit(f"invalid name for func declaration, {self.tokens.actual.tipo}")
+		func_name = self.tokens.actual.value
+
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo != "open_parenteses":
+			sys.exit(f"sem ( na declaracao de funcao, {self.tokens.actual.tipo}")
+		self.getNextNotComentary()
+
+		args = [] # (type name)
+		while self.tokens.actual.tipo != "close_parenteses":
+			if self.tokens.actual.tipo != "var_type":
+				sys.exit(f"tipo errado de func, {self.tokens.actual.tipo}")
+			arg_type = self.tokens.actual.value
+			self.getNextNotComentary()
+
+			if self.tokens.actual.tipo != "var":
+				sys.exit(f"tipo errado de func, {self.tokens.actual.tipo}")
+			arg_name = self.tokens.actual.value
+			self.getNextNotComentary()
+
+			args.append((arg_type, arg_name))
+
+			if self.tokens.actual.tipo == ",":
+				self.tokens.selectNext()
+				if self.tokens.actual.tipo == "open_parenteses":
+					sys.exit(f"tem q ter var depois de virgula, {self.tokens.actual.tipo}")
+		
+		self.getNextNotComentary()
+		block = self.command()
+		return FuncDec(func_type, func_name, args, block)
+
+
 	def run(self, code: str):
 		self.tokens = Tokenizer(code)
 		# self.print_all_tokens()
 		# return
+		funcs:List[FuncDec] = []
 		self.getNextNotComentary()
-		self.parseBlock().Evaluate()
+		while self.tokens.actual.tipo != "EOF":
+			funcs.append(self.parseFuncDec())
+			self.getNextNotComentary()
+
+		for func in funcs:
+			func.Evaluate()
+
+		main = FuncCall("main", [])
+		main.Evaluate()
 
 	def print_all_tokens(self):
 		self.tokens.selectNext()
 		while self.tokens.actual.tipo != "EOF":
-			
+			self.print_token()
 			# print()
 			self.tokens.selectNext()
 		
