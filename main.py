@@ -7,6 +7,7 @@ funcs_table = {} # funcname:{argumets:[[type, name, value]], block:block, func_t
 class VarTable():
 	table = {"main":{}} # escopo: {varname:[vartipo, varvalue]}
 	escopo = "main"
+	id = 0
 	
 	def getTable():
 		if(VarTable.escopo not in VarTable.table):
@@ -48,11 +49,11 @@ class BinOP(Node):
 class UnOp(Node):
 	def Evaluate(self):
 		if self.value == "add":
-			return self.children.Evaluate()
+			return ["int", self.children.Evaluate()[1]]
 		if self.value == "sub":
-			return -self.children.Evaluate()
+			return ["int", -self.children.Evaluate()[1]]
 		if self.value == "!":
-			return int(not self.children.Evaluate())
+			return ["int", int(not self.children.Evaluate()[1])]
 
 		sys.exit("DEU RUIM 2")
 
@@ -114,7 +115,8 @@ class ReturnNode(Node):
 		super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return self.children[0].Evaluate()
+		a = self.children[0].Evaluate()
+		return a
 
 class FuncCall(Node):
 	def __init__(self, func_name, children=[]):
@@ -122,26 +124,43 @@ class FuncCall(Node):
 		self.func_name = func_name
 
 	def Evaluate(self):
+		if(self.func_name not in funcs_table):
+			sys.exit("funcao nao declarada")
 		func_arguments = self.children # [type, value]
 		prev_escopo = VarTable.escopo
-		VarTable.escopo = self.func_name # varname:[vartipo, varvalue=None]
-		var_table = VarTable.getTable()
+		prev_escopo_table = VarTable.getTable()
+
+		var_table = {}
 		var_names = funcs_table[self.func_name]["arguments"]
 
 		if(len(var_names) != len(func_arguments)):
 			sys.exit(f"quant diferente de arg na funcao {self.func_name}")
 
 		for i in range(len(var_names)):
-			arg_type_passed, arg_value = func_arguments[i]
+			arg_type_passed, arg_value = func_arguments[i].Evaluate()
 			arg_type, arg_name = var_names[i]
 			if(arg_type_passed == "integer"): arg_type_passed = "int"
-			if(arg_type_passed != arg_type): sys.exit("tipo errado na funcao")
+			if(arg_type_passed == "var"):
+				arg_type_passed, arg_value = prev_escopo_table[arg_value]
+				
+			if(arg_type_passed != arg_type): 
+				sys.exit("tipo errado na funcao")
 
 			var_table[arg_name] = [arg_type, arg_value]
+
+		VarTable.id += 1
+		VarTable.escopo = self.func_name + str(VarTable.id) # varname:[vartipo, varvalue=None]
+		VarTable.getTable()
 		
 		VarTable.setTable(var_table)
 
 		ret = funcs_table[self.func_name]["block"].Evaluate()
+
+		if ret == None:
+			sys.exit("tem q rettorna coisa")
+
+		if funcs_table[self.func_name]["func_type"] != ret[0]:
+			sys.exit("retorna tipo errada")
 
 		VarTable.resetTable()
 		VarTable.escopo = prev_escopo
@@ -156,7 +175,7 @@ class FuncDec(Node):
 
 	def Evaluate(self):
 		global funcs_table
-		funcs_table[self.func_name] = {"arguments":self.children, "block":self.block, "func_type":self.func_type } # funcname:{argumets:[[type, name]], block:block, func_type:type}
+		funcs_table[self.func_name] = {"arguments":self.children, "block":self.block, "func_type":self.func_type} # funcname:{argumets:[[type, name]], block:block, func_type:type}
 
 
 class Readln(Node):
@@ -191,8 +210,10 @@ class CompOp(Node):
 
 class IfOp(Node):
 	def Evaluate(self):
-		if self.children[0].Evaluate():
-			return self.children[1].Evaluate()
+		a = self.children[0].Evaluate()
+		if a[1]:
+			b = self.children[1].Evaluate()
+			return b
 		elif len(self.children) == 3:
 			return self.children[2].Evaluate()
 
@@ -203,7 +224,6 @@ class WhileOp(Node):
 	def Evaluate(self):
 		while self.children[0].Evaluate():
 			a = self.children[1].Evaluate()
-			print(a)
 			if(a != None): return a
 
 class BoolVal(Node):
@@ -227,7 +247,9 @@ class Block(Node):
 
 	def Evaluate(self):
 		for node in self.children:
-			node.Evaluate()
+			ret = node.Evaluate()
+			if type(node) == ReturnNode or ret != None:
+				return ret
 
 	def AddNode(self, node):
 		self.children.append(node)
@@ -256,6 +278,8 @@ class Tokenizer:
 				if self.brackets != 0:
 					sys.exit("unbalanced bracket")
 				return
+			if(self.origin[self.position] == "\n"):
+				self.line += 1
 			self.position += 1
 
 		if self.origin[self.position].isdigit():
@@ -417,7 +441,6 @@ class Tokenizer:
 		elif self.origin[self.position] == ";":
 			self.actual = Token(tipo=";", value=0)
 			self.position += 1
-			self.line += 1
 			if self.origin[self.position] == "\n":
 				self.position += 1
 			if self.brackets != 0:
@@ -482,20 +505,11 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "open_parenteses":
 				arguments = []
-				self.getNextNotComentary()
 				while self.tokens.actual.tipo != "close_parenteses":
-					if self.tokens.actual.tipo == "integer":
-						arguments.append(IntVal(self.tokens.actual.value, []))
-					elif self.tokens.actual.tipo == "bool":
-						arguments.append(BoolVal([self.tokens.actual.value]))
-					elif self.tokens.actual.tipo == "string":
-						arguments.append(StrVal([self.tokens.actual.value]))
-
-					self.getNextNotComentary()
+					arguments.append(self.parseOr())
 					if self.tokens.actual.tipo == ",":
-						self.getNextNotComentary()
-					elif self.tokens.actual.tipo != "close_parenteses":
-						sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
+						if self.tokens.actual.tipo == "close_parenteses":
+							sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}, {self.tokens.actual.tipo}")
 				if self.tokens.actual.tipo != "close_parenteses":
 					sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
 
@@ -520,7 +534,7 @@ class Parser:
 		if self.tokens.actual.tipo == "close_parenteses":
 			sys.exit(f"int after close da linha  {self.tokens.line}")
 
-		
+		self.print_token()
 		sys.exit(f"2 mult/div seguidos na linha {self.tokens.line}")
 
 	def parseTerm(self):
@@ -657,14 +671,10 @@ class Parser:
 		self.getNextNotComentary()
 		args = []
 		while self.tokens.actual.tipo != "close_parenteses":
-			if self.tokens.actual.tipo not in ["integer", "bool", "string"]:
-				sys.exit("AAA")
-			args.append((self.tokens.actual.tipo, self.tokens.actual.value))
+			args.append(self.parseOr())
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == ",":
 				self.getNextNotComentary()
-				if self.tokens.actual.tipo not in ["integer", "bool", "string"]:
-					sys.exit("tem q ter arg depois de virgula")
 		
 		self.getNextNotComentary()
 		return FuncCall(func_name, args)
