@@ -152,6 +152,9 @@ class FuncCall(Node):
 
 		ret = funcs_table[self.func_name]["block"].Evaluate()
 
+		if ret == None and funcs_table[self.func_name]["func_type"] == "int":
+			ret = ["int", 1]
+
 		if ret == None:
 			sys.exit("tem q rettorna coisa")
 
@@ -500,17 +503,7 @@ class Parser:
 			var = self.tokens.actual.value
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "open_parenteses":
-				arguments = []
-				while self.tokens.actual.tipo != "close_parenteses":
-					arguments.append(self.parseOr())
-					if self.tokens.actual.tipo == ",":
-						if self.tokens.actual.tipo == "close_parenteses":
-							sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}, {self.tokens.actual.tipo}")
-				if self.tokens.actual.tipo != "close_parenteses":
-					sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
-
-				self.getNextNotComentary() #consume close parenthesis
-				return FuncCall(var, arguments)
+				return self.call_function(var)
 			return VarVal(children=[var])
 
 		if self.tokens.actual.tipo == "readln":
@@ -566,7 +559,11 @@ class Parser:
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "open_parenteses":
 			exp = self.parseOr()
+			if self.tokens.actual.tipo != "close_parenteses":
+				sys.exit("sem ) no print")
 			self.getNextNotComentary()
+			if self.tokens.actual.tipo != ";":
+				sys.exit("sem ; no print")
 			return PrintOp(0, [exp])
 		sys.exit(f"sem ( depois de chamr println na linha  {self.tokens.line}")
 
@@ -647,6 +644,8 @@ class Parser:
 
 	def variable_already_declared(self, var_name):
 		exp = self.parseOr()
+		if self.tokens.actual.tipo != "l":
+				sys.exit("sem ; na variavel")
 		return SetVar(0, [var_name, exp])
 
 	def var_already_declared_or_call_function(self):
@@ -664,16 +663,17 @@ class Parser:
 	def call_function(self, func_name):
 		if self.tokens.actual.tipo != "open_parenteses":
 			sys.exit("sem ( depois de chamar funcao")
-		self.getNextNotComentary()
-		args = []
+		arguments = []
 		while self.tokens.actual.tipo != "close_parenteses":
-			args.append(self.parseOr())
-			self.getNextNotComentary()
+			arguments.append(self.parseOr())
 			if self.tokens.actual.tipo == ",":
-				self.getNextNotComentary()
-		
-		self.getNextNotComentary()
-		return FuncCall(func_name, args)
+				if self.tokens.actual.tipo == "close_parenteses":
+					sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}, {self.tokens.actual.tipo}")
+		if self.tokens.actual.tipo != "close_parenteses":
+			sys.exit(f"sem ) na chamada de funcao na linha {self.tokens.line}")
+
+		self.getNextNotComentary() #consume close parenthesis
+		return FuncCall(func_name, arguments)
 
 	def command(self):
 		node = None
