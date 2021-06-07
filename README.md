@@ -1,2 +1,2 @@
 # compilador
-python3 calculator.py
+python3 main.py
