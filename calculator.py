@@ -5,8 +5,8 @@ from typing import List
 funcs_table = {} # funcname:{argumets:[[type, name, value]], block:block, func_type:type}
 
 class VarTable():
-	table = {"main":{}} # escopo: {varname:[vartipo, varvalue]}
-	escopo = "main"
+	table = {} # escopo: {varname:[vartipo, varvalue]}
+	escopo = ""
 	id = 0
 	
 	def getTable():
@@ -150,19 +150,21 @@ class FuncCall(Node):
 		
 		VarTable.setTable(var_table)
 
+
 		ret = funcs_table[self.func_name]["block"].Evaluate()
 
-		if ret == None and funcs_table[self.func_name]["func_type"] == "int":
+		if ret == None and self.func_name == "main":
 			ret = ["int", 1]
 
 		if ret == None:
-			sys.exit("tem q rettorna coisa")
+			sys.exit(f"tem q rettorna coisa, {self.func_name}")
 
 		if funcs_table[self.func_name]["func_type"] != ret[0]:
 			sys.exit("retorna tipo errada")
 
 		VarTable.resetTable()
 		VarTable.escopo = prev_escopo
+
 		return ret
 
 class FuncDec(Node):
@@ -174,6 +176,8 @@ class FuncDec(Node):
 
 	def Evaluate(self):
 		global funcs_table
+		if self.func_name in funcs_table:
+			sys.exit("funcao ja existe")
 		funcs_table[self.func_name] = {"arguments":self.children, "block":self.block, "func_type":self.func_type} # funcname:{argumets:[[type, name]], block:block, func_type:type}
 
 
@@ -247,7 +251,7 @@ class Block(Node):
 	def Evaluate(self):
 		for node in self.children:
 			ret = node.Evaluate()
-			if type(node) == ReturnNode or ret != None:
+			if type(node) != FuncCall and (type(node) == ReturnNode or ret != None):
 				return ret
 
 	def AddNode(self, node):
@@ -750,8 +754,8 @@ class Parser:
 
 			if self.tokens.actual.tipo == ",":
 				self.tokens.selectNext()
-				if self.tokens.actual.tipo == "open_parenteses":
-					sys.exit(f"tem q ter var depois de virgula, {self.tokens.actual.tipo}")
+				if self.tokens.actual.tipo == "close_parenteses":
+					sys.exit(f"tem q ter var depois de virgula")
 		
 		self.getNextNotComentary()
 		block = self.command()
@@ -767,7 +771,6 @@ class Parser:
 		while self.tokens.actual.tipo != "EOF":
 			funcs.append(self.parseFuncDec())
 			self.getNextNotComentary()
-
 
 		for func in funcs:
 			func.Evaluate()
