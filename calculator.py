@@ -214,6 +214,8 @@ class CompOp(Node):
 class IfOp(Node):
 	def Evaluate(self):
 		a = self.children[0].Evaluate()
+		if a[0] == "string":
+			sys.exit("str no if")
 		if a[1]:
 			b = self.children[1].Evaluate()
 			return b
@@ -458,8 +460,8 @@ class Tokenizer:
 			self.actual = Token(tipo="var", value=tmp)
 
 		else:
-			print(ord(self.origin[self.position]))
-			sys.exit(f"found a value not in {accepted_chars}")
+			print()
+			sys.exit(f"found a value not in {accepted_chars}, {ord(self.origin[self.position])}")
 
 
 class Parser:
