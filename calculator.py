@@ -221,7 +221,7 @@ class WhileOp(Node):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		while self.children[0].Evaluate():
+		while self.children[0].Evaluate()[1]:
 			a = self.children[1].Evaluate()
 			if(a != None): return a
 
@@ -667,8 +667,9 @@ class Parser:
 		arguments = []
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo != "close_parenteses":
+			self.tokens.actual.value = str(self.tokens.actual.value)
 			self.tokens.position -= len(self.tokens.actual.value)
-			
+
 		while self.tokens.actual.tipo != "close_parenteses":
 			arguments.append(self.parseOr())
 			if self.tokens.actual.tipo == ",":
