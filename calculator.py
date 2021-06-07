@@ -277,7 +277,7 @@ class Tokenizer:
 
 	def selectNext(self):
 
-		while self.origin[self.position] == " " or self.origin[self.position] == "\n":
+		while self.origin[self.position] == " " or self.origin[self.position] == "\n" or ord(self.origin[self.position]) == 9:
 			if self.position == len(self.origin) - 1:
 				self.actual = Token(tipo="EOF", value=0)
 				if self.brackets != 0:
