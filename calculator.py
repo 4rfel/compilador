@@ -152,6 +152,9 @@ class FuncCall(Node):
 
 		ret = funcs_table[self.func_name]["block"].Evaluate()
 
+		if ret == None and self.func_name == "main":
+			ret = ["int", 1]
+
 		if ret == None:
 			sys.exit("tem q rettorna coisa")
 
@@ -188,19 +191,19 @@ class CompOp(Node):
 		c1 = self.children[1].Evaluate()
 
 		if self.value == "==":
-			return ["bool", c0 == c1]
+			return ["bool", c0[1] == c1[1]]
 
 		if self.value == "<":
-			return ["bool", c0 < c1]
+			return ["bool", c0[1] < c1[1]]
 
 		if self.value == ">":
-			return ["bool", c0 > c1]
+			return ["bool", c0[1] > c1[1]]
 
 		if self.value == "&&":
-			return ["bool", bool(c0) and bool(c1)]
+			return ["bool", bool(c0[1]) and bool(c1[1])]
 
 		if self.value == "||":
-			return ["bool", bool(c0) or bool(c1)]
+			return ["bool", bool(c0[1]) or bool(c1[1])]
 		
 		sys.exit("DEU RUIM 3")
 
@@ -227,7 +230,8 @@ class BoolVal(Node):
 			super().__init__(value=None, children=children)
 
 	def Evaluate(self):
-		return ["bool", bool(self.children[0])]
+		a = bool(self.children[0])
+		return ["bool", a]
 
 class StrVal(Node):
 	def __init__(self, children):
@@ -556,6 +560,8 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "=":
 				exp = self.parseOr()
+				if self.tokens.actual.tipo != ";":
+					sys.exit("sem ;")
 				return SetVar(0, [var_name, var_type, exp])
 			elif self.tokens.actual.tipo == ";":
 				return SetVar(0, [var_name, var_type])
@@ -567,6 +573,8 @@ class Parser:
 		if self.tokens.actual.tipo == "open_parenteses":
 			exp = self.parseOr()
 			self.getNextNotComentary()
+			if self.tokens.actual.tipo != ";":
+				sys.exit("sem ; depois de print")
 			return PrintOp(0, [exp])
 		sys.exit(f"sem ( depois de chamr println na linha  {self.tokens.line}")
 
@@ -647,6 +655,8 @@ class Parser:
 
 	def variable_already_declared(self, var_name):
 		exp = self.parseOr()
+		if self.tokens.actual.tipo != ";":
+			sys.exit("sem ;")
 		return SetVar(0, [var_name, exp])
 
 	def var_already_declared_or_call_function(self):

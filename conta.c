@@ -1,4 +1,6 @@
-x = 3;
-y = 4;
-z = x + y;
-println(x + y + z);
+int main()
+{
+    int x;
+    x = 4;
+    int y = 8;
+}
