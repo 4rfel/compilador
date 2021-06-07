@@ -33,7 +33,7 @@ class BinOP(Node):
 	def Evaluate(self):
 		c0 = self.children[0].Evaluate()
 		c1 = self.children[1].Evaluate()
-		if c0[0] != "int" or c1[0] != "int":
+		if c0[0] == "string" or c1[0] == "string":
 			sys.exit(f"conta com variavel diferente de int, {c0}, {c1}")
 		if self.value == "add":
 			return ["int", c0[1] + c1[1]]
@@ -503,7 +503,8 @@ class Parser:
 			var = self.tokens.actual.value
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo == "open_parenteses":
-				return self.call_function(var)
+				func = self.call_function(var)
+				return func
 			return VarVal(children=[var])
 
 		if self.tokens.actual.tipo == "readln":
@@ -514,16 +515,16 @@ class Parser:
 			self.getNextNotComentary()
 			if self.tokens.actual.tipo != "close_parenteses":
 				sys.exit("sem fechar parenteses depois de readln")
+			self.getNextNotComentary()
 			return Readln()
 			
-
+		self.print_token()
 		if self.tokens.actual.tipo == ";":
 			sys.exit(f"operacao no final da linha {self.tokens.line}")
 			
 		if self.tokens.actual.tipo == "close_parenteses":
 			sys.exit(f"int after close da linha  {self.tokens.line}")
 
-		self.print_token()
 		sys.exit(f"2 mult/div seguidos na linha {self.tokens.line}")
 
 	def parseTerm(self):
@@ -645,7 +646,7 @@ class Parser:
 	def variable_already_declared(self, var_name):
 		exp = self.parseOr()
 		if self.tokens.actual.tipo != ";":
-				sys.exit("sem ; na variavel")
+			sys.exit("sem ; na variavel")
 		return SetVar(0, [var_name, exp])
 
 	def var_already_declared_or_call_function(self):
@@ -664,6 +665,10 @@ class Parser:
 		if self.tokens.actual.tipo != "open_parenteses":
 			sys.exit("sem ( depois de chamar funcao")
 		arguments = []
+		self.getNextNotComentary()
+		if self.tokens.actual.tipo != "close_parenteses":
+			self.tokens.position -= len(self.tokens.actual.value)
+			
 		while self.tokens.actual.tipo != "close_parenteses":
 			arguments.append(self.parseOr())
 			if self.tokens.actual.tipo == ",":
