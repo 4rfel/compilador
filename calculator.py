@@ -358,8 +358,6 @@ class Parser:
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "=":
 			exp = self.parseOr()
-			if self.tokens.actual.tipo != ";":
-				sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 			return SetVar(0, [var, exp])
 		else:
 			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
