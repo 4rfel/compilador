@@ -358,6 +358,8 @@ class Parser:
 		self.getNextNotComentary()
 		if self.tokens.actual.tipo == "=":
 			exp = self.parseOr()
+			if self.tokens.actual.tipo != ";":
+				sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
 			return SetVar(0, [var, exp])
 		else:
 			sys.exit(f"sem = depois de variavel na linha  {self.tokens.line}")
@@ -367,6 +369,8 @@ class Parser:
 		if self.tokens.actual.tipo == "open_parenteses":
 			exp = self.parseOr()
 			self.getNextNotComentary()
+			if self.tokens.actual.tipo != ";":
+				sys.exit(f"sem ; depois de chamr println na linha  {self.tokens.line}")
 			return PrintOp(0, [exp])
 		sys.exit(f"sem ( depois de chamr println na linha  {self.tokens.line}")
 
